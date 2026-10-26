@@ -1,0 +1,17 @@
+bin/
+*.img
+*.zip
+*.apk
+*.log
+.DS_Store
+Thumbs.db
+__pycache__/
+
+# Per-unit partition backups: never committed (images, serial numbers, factory data).
+backups/
+
+# Build inputs for the Linux image: LineageOS and Amazon firmware, never committed.
+inputs/
+
+# Installer downloads and work files.
+build/

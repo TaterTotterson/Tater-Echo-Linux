@@ -1,0 +1,66 @@
+TECHO5 Spot builds on the work of other open-source projects.
+
+TECHO5, https://github.com/HuskerMinion/techo5 (MIT)
+  The echod daemon, the Linux image tooling, the rootfs slot design and the kernel build recipe.
+
+TECHO5 Dot (MIT)
+  The 512 MB image layout and the installer and backup pattern.
+
+EchoLocal, https://github.com/ygelfand/echolocal
+  Copyright (c) 2026 Yuri Gelfand, MIT License.
+  The Echo Dot 2 daemon echod is built on: the daemon in every release (TECHO5's echod, spot build)
+  began as EchoLocal's code, vendored whole, and much of it still is. EchoLocal's license applies to
+  that code:
+
+  MIT License
+
+  Copyright (c) 2026 Yuri Gelfand
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files (the "Software"), to deal
+  in the Software without restriction, including without limitation the rights
+  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  copies of the Software, and to permit persons to whom the Software is
+  furnished to do so, subject to the following conditions:
+
+  The above copyright notice and this permission notice shall be included in all
+  copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+  SOFTWARE.
+
+amonet, kaeru and the Echo TWRP trees, https://github.com/R0rt1z2
+  The unlock and bootloader payload this project depends on (not redistributed).
+
+amazon-oss, https://github.com/amazon-oss
+  The LineageOS 18.1 rook device tree and the MT8163 4.9 kernel, cited in docs/.
+
+Linux kernel, https://git.kernel.org (GPL-2.0)
+  Every release ships a kernel: techo5-spot-kernel-bt.Image.gz-dtb, Linux 4.9.337 for arm64. It is
+  GPL-2.0, and this is where its source is.
+    - Source: github.com/amazon-oss/android_kernel_amazon_mt8163 at commit 4174e0b4d0e2, the commit
+      the LineageOS 18.1 rook boot image was built from (`uname -r` on the unit is
+      4.9.337-g4174e0b4d0e2).
+    - Changes: none to the source. What differs is the configuration — Bluetooth core, BR/EDR, LE,
+      RFCOMM and the virtual HCI driver turned on.
+    - Configuration: the running kernel's own /proc/config.gz, recorded as
+      docs/dumps/rook-lineage-kernel-4.9.337.config, with those options added.
+    - The script that does it is tools/linux/build-kernel.sh, and docs/building.md is how to run it.
+      A rebuild reproduces the shipped image.
+
+FFmpeg, Shairport Sync, nqptp, librespot and Tailscale
+  The root filesystem, built by TECHO5's tools/linux/deploy-rootfs.sh, carries FFmpeg 8.1.2
+  (LGPL-2.1-or-later), Shairport Sync 5.6.1 (MIT, parts BSD and ISC), nqptp 1.2.9 (GPL-2.0),
+  librespot 0.8.0 (MIT) and tailscaled (BSD 3-Clause), each with its license files in
+  /usr/share/licenses. Where their sources are, what was changed and how they are built is in TECHO5's
+  NOTICE; their source archives, patches, licenses and build scripts are attached to each release from
+  spot-v1.4.8 on (techo5-third-party-sources*.tar.gz).
+
+docs/dumps/rook_defconfig-lineage-18.1 is arch/arm64/configs/rook_defconfig from
+github.com/amazon-oss/android_kernel_amazon_mt8163, branch lineage-18.1 (GPL-2.0), copied as a
+reference; docs/dumps/rook-vs-cronos-defconfig.diff compares it with cronos_defconfig from the same tree.
