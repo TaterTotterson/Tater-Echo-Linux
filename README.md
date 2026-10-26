@@ -49,4 +49,6 @@ boot inputs are pinned in CI; they must never borrow another board's image.
 Current Tater platform work:
 
 - [Biscuit micro-USB Ethernet](docs/biscuit-usb-ethernet.md)
+- [Dot kernels v1.0.0](https://github.com/TaterTotterson/Tater-Echo-Linux/releases/tag/dot-kernel-v1.0.0)
+  for Biscuit and Radar, built from the immutable `platform/dot` source ref.
 

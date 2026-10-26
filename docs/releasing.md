@@ -40,6 +40,13 @@ wait until their complete toolchain and target-specific boot inputs are pinned
 in CI. Until then the firmware may use this repository for source while
 retaining the existing hash-pinned binary baseline.
 
+The current Dot-family prerelease is
+[`dot-kernel-v1.0.0`](https://github.com/TaterTotterson/Tater-Echo-Linux/releases/tag/dot-kernel-v1.0.0).
+It is built from `d5867a594f1707964f2ee58fbb773da522a3a6cd`, which is
+based directly on the previously pinned Dot source commit and contains only
+the Tater USB Ethernet kernel integration. Its Biscuit and Radar images,
+configs, System maps, and checksums are published separately.
+
 Historical `techo5-*` paths and names are compatibility interfaces inherited
 by installed systems and rescue tooling. New repository-level names are
 Tater-first; compatibility names are removed only through a separately tested
