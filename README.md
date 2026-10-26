@@ -35,3 +35,7 @@ tested migration.
 Tater application code remains in
 [`Tater-Echo-Firmware`](https://github.com/TaterTotterson/Tater-Echo-Firmware).
 
+Current Tater platform work:
+
+- [Biscuit micro-USB Ethernet](docs/biscuit-usb-ethernet.md)
+
