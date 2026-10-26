@@ -1,0 +1,31 @@
+name: Platform validation
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Validate satellite boundaries
+        run: python3 tools/validate_targets.py
+      - name: Parse platform build entry points
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n platforms/dot/tools/linux/build-kernel.sh
+          bash -n platforms/dot/tools/linux/build-image.sh
+          bash -n platforms/show/tools/linux/build-kernel.sh
+          bash -n platforms/show/tools/linux/build-image.sh
+          bash -n platforms/show/tools/linux/athena/kernel/build.sh
+          bash -n platforms/spot/tools/linux/build-kernel.sh
+          bash -n platforms/spot/tools/linux/build-image.sh
+          python3 -m py_compile tools/validate_targets.py

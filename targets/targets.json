@@ -1,0 +1,86 @@
+{
+  "schema": 1,
+  "repository": "https://github.com/TaterTotterson/Tater-Echo-Linux",
+  "families": {
+    "dot": {
+      "path": "platforms/dot",
+      "upstream": "https://github.com/HuskerMinion/techo5-dot",
+      "targets": {
+        "biscuit": {
+          "device": "Echo Dot 2nd Generation",
+          "model": "RS03QR",
+          "kernel": "3.18.19 armv7",
+          "build": "tools/linux/build-kernel.sh --board biscuit",
+          "artifacts": [
+            "kernel",
+            "kernel-config",
+            "system-map"
+          ]
+        },
+        "radar": {
+          "device": "Echo 2nd Generation",
+          "model": "XC56PY",
+          "kernel": "3.18.19 armv7",
+          "build": "tools/linux/build-kernel.sh --board radar",
+          "artifacts": [
+            "kernel",
+            "kernel-config",
+            "system-map"
+          ]
+        }
+      }
+    },
+    "show": {
+      "path": "platforms/show",
+      "upstream": "https://github.com/HuskerMinion/techo5",
+      "targets": {
+        "checkers": {
+          "device": "Echo Show 5 1st Generation",
+          "model": "H23K37",
+          "kernel": "4.9.337 arm64 with armv7 userspace",
+          "build": "tools/linux/build-kernel.sh with checkers_defconfig, then tools/linux/build-image.sh",
+          "artifacts": [
+            "boot-image"
+          ]
+        },
+        "crown": {
+          "device": "Echo Show 8 1st Generation",
+          "model": "C7H6N3",
+          "kernel": "4.9.337 arm64 with armv7 userspace",
+          "build": "tools/linux/build-kernel.sh with crown_defconfig, then tools/linux/build-image.sh",
+          "artifacts": [
+            "boot-image"
+          ]
+        },
+        "athena": {
+          "device": "Echo Show 8 2nd Generation",
+          "model": "A8H3N2",
+          "kernel": "6.18.56 arm64 with armv7 userspace",
+          "build": "tools/linux/athena/kernel/build.sh",
+          "artifacts": [
+            "boot-image",
+            "kernel-source",
+            "kernel-config"
+          ]
+        }
+      }
+    },
+    "spot": {
+      "path": "platforms/spot",
+      "upstream": "https://github.com/HuskerMinion/techo5-spot",
+      "targets": {
+        "rook": {
+          "device": "Echo Spot 1st Generation",
+          "model": "VN94DQ",
+          "kernel": "4.9.337 arm64 with armv7 userspace",
+          "build": "tools/linux/build-kernel.sh then tools/linux/build-image.sh",
+          "artifacts": [
+            "kernel",
+            "boot-image",
+            "rescue"
+          ]
+        }
+      }
+    }
+  }
+}

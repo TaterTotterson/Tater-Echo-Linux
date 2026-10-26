@@ -1,0 +1,5 @@
+__pycache__/
+*.py[cod]
+
+# Platform builds are large and are published as release artifacts.
+dist/

@@ -1,0 +1,42 @@
+name: Build Biscuit and Radar kernels
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  kernel:
+    name: ${{ matrix.target }} kernel
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - biscuit
+          - radar
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Build target kernel
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+          WORK: /tmp/tater-kernel-work
+          TOOLCHAIN: /tmp/tater-toolchain/arm-eabi-4.8
+        run: |
+          set -euo pipefail
+          out="$PWD/dist/$TARGET"
+          mkdir -p "$out"
+          platforms/dot/tools/linux/build-kernel.sh --board "$TARGET" -o "$out"
+          mv "$out/zImage-dtb" "$out/tater-echo-$TARGET-kernel.zImage-dtb"
+          mv "$out/zImage-dtb.config" "$out/tater-echo-$TARGET-kernel.config"
+          mv "$out/zImage-dtb.System.map" "$out/tater-echo-$TARGET-kernel.System.map"
+          (cd "$out" && sha256sum tater-echo-$TARGET-* > SHA256SUMS)
+          cat "$out/SHA256SUMS"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: tater-echo-${{ matrix.target }}-kernel-${{ github.sha }}
+          path: dist/${{ matrix.target }}/
+          if-no-files-found: error

@@ -1,9 +1,9 @@
-# Tater Linux
+# Tater Echo Linux
 
-Tater Linux is the board-platform source used to build Linux kernels, root
-filesystems, rescue images, and factory tooling for Tater Echo satellites.
-It keeps the original upstream histories intact while giving Tater one place
-to maintain and release the complete platform stack.
+Tater Echo Linux is the kernel, boot, root filesystem, rescue, and
+board-platform source for every Tater Echo satellite. It keeps the original
+upstream histories intact while giving Tater one place to maintain and
+release the complete platform stack.
 
 ## Platforms
 
@@ -12,6 +12,11 @@ to maintain and release the complete platform stack.
 | `platforms/dot/` | Biscuit, Radar | `HuskerMinion/techo5-dot` |
 | `platforms/show/` | Checkers, Crown, Athena | `HuskerMinion/techo5` |
 | `platforms/spot/` | Rook | `HuskerMinion/techo5-spot` |
+
+The machine-readable [target manifest](targets/targets.json) maps every
+supported satellite to its isolated platform directory, build entry point,
+and release artifacts. Run `python3 tools/validate_targets.py` before pushing
+platform changes.
 
 These directories intentionally remain separate. The board families have
 different kernels, device trees, boot formats, and recovery contracts;
@@ -34,6 +39,12 @@ tested migration.
 
 Tater application code remains in
 [`Tater-Echo-Firmware`](https://github.com/TaterTotterson/Tater-Echo-Firmware).
+
+Build and release policy is documented in
+[`docs/releasing.md`](docs/releasing.md). Dot-family kernels can be built on a
+pinned GitHub runner with the manual **Build Biscuit and Radar kernels**
+workflow. Other families remain separately gated until their toolchains and
+boot inputs are pinned in CI; they must never borrow another board's image.
 
 Current Tater platform work:
 
