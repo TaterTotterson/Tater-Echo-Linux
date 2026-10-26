@@ -1,7 +1,7 @@
 #!/bin/bash
 # build-kernel.sh — the Dot's Fire OS 6 kernel (3.18.19, 32-bit ARM) with Bluetooth added, so
 # btbridge can turn the vendor driver's /dev/stpbt into hci0 through /dev/vhci and BlueZ and
-# bluez-alsa run as on TECHO5. Run inside WSL/Linux; no root needed.
+# bluez-alsa run as part of Tater Linux. Run inside WSL/Linux; no root needed.
 #
 #   tools/linux/build-kernel.sh [--board biscuit|radar] [--stock] [-o DIR]
 #
@@ -97,7 +97,29 @@ REF=${REF:-}
 LNX_URL=https://cdn.kernel.org/pub/linux/kernel/v3.x/linux-3.18.19.tar.xz
 LNX_SHA=3d80d3b8d98c3141d9e26f6c25d73575d688f1c1651b8076f0f2bfd76325b7c9
 TC_REPO=https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/arm/arm-eabi-4.8
-FRAGMENT=$HERE/kernel-bt.fragment
+# Fragments applied after the unit's config, in order. kernel-bt.fragment is the Bluetooth set;
+# kernel-usbnet.fragment (present) adds USB host mode (/proc/mchange) and the ethernet MII core.
+FRAGMENTS=("$HERE/kernel-bt.fragment")
+[ ! -f "$HERE/kernel-usbnet.fragment" ] || FRAGMENTS+=("$HERE/kernel-usbnet.fragment")
+
+# Every fragment line must be in the config the image was actually built from;
+# the check runs after olddefconfig and again after the build, because
+# silentoldconfig during make silently drops lines Kconfig has no symbol for
+# (e.g. invisible tristates set by hand). Both =y/=m lines and "not set" lines
+# are checked (a "not set" line is what pins symbols whose Kconfig default is y).
+fragments_landed() {
+	local frag line bad=0
+	for frag in "${FRAGMENTS[@]}"; do
+		while IFS= read -r line; do
+			line=${line%$'\r'}
+			case "$line" in
+			CONFIG_*) grep -qx "$line" "$KOUT/.config" || { echo "not applied: $line" >&2; bad=1; } ;;
+			"# CONFIG_"*" is not set") grep -qx "$line" "$KOUT/.config" || { echo "not applied: $line" >&2; bad=1; } ;;
+			esac
+		done < "$frag"
+	done
+	[ $bad = 0 ]
+}
 
 fetch() { # url sha256
 	local f=$DL/${1##*/}
@@ -121,7 +143,7 @@ if [ ! -x "$TOOLCHAIN/bin/arm-eabi-gcc" ]; then
 	git clone --depth 1 -b lollipop-release "$TC_REPO" "$TOOLCHAIN"
 fi
 
-# Fresh trees every run: Amazon's kernel, then the missing Bluetooth sources from upstream.
+# Fresh trees every run: Amazon's kernel, then the missing sources from upstream.
 SRC=$WORK/src
 rm -rf "$WORK/amz" "$WORK/linux-3.18.19" "$SRC"
 mkdir -p "$WORK/amz"
@@ -130,8 +152,24 @@ tar -xf "$WORK/amz/platform.tar" -C "$WORK/amz" kernel/mediatek/mt8163/3.18_hl d
 mv "$WORK/amz/kernel/mediatek/mt8163/3.18_hl" "$SRC"
 rm "$WORK/amz/platform.tar"
 if [ -z "$STOCK" ]; then
+	# Bluetooth files Amazon's GPL tarball omits.
 	tar -xJf "$DL/${LNX_URL##*/}" -C "$WORK" linux-3.18.19/net/bluetooth linux-3.18.19/drivers/bluetooth \
 		linux-3.18.19/include/net/bluetooth
+	# USB Ethernet: the MII core and usbnet/cdc_ether that Amazon's build never compiled,
+	# needed for the Realtek RTL8152 CDC-ECM adapter (kernel-usbnet.fragment). USB announce
+	# needs no graft: Amazon's own hub.c carries it behind CONFIG_USB_ANNOUNCE_NEW_DEVICES.
+	tar -xJf "$DL/${LNX_URL##*/}" -C "$WORK" linux-3.18.19/drivers/net/mii.c \
+		linux-3.18.19/drivers/net/usb/usbnet.c linux-3.18.19/drivers/net/usb/cdc_ether.c \
+		linux-3.18.19/include/linux/usb/usbnet.h
+	for f in drivers/net/mii.c drivers/net/usb/usbnet.c drivers/net/usb/cdc_ether.c \
+		include/linux/usb/usbnet.h; do
+		if [ -e "$SRC/$f" ]; then
+			cmp -s "$SRC/$f" "$WORK/linux-3.18.19/$f" || echo "note: Amazon's $f differs from upstream; kept Amazon's"
+		else
+			mkdir -p "$SRC/$(dirname "$f")"
+			cp "$WORK/linux-3.18.19/$f" "$SRC/$f"
+		fi
+	done
 	for d in net/bluetooth drivers/bluetooth include/net/bluetooth; do
 		(cd "$WORK/linux-3.18.19" && find "$d" -type f) | while read -r f; do
 			if [ -e "$SRC/$f" ]; then
@@ -154,7 +192,7 @@ if [ -z "$STOCK" ]; then
 		tr -d '\r' < "$p" | patch -d "$SRC" -p1 -F0 -N -s --no-backup-if-mismatch
 		n=$((n + 1))
 	done
-	echo "applied $n Bluetooth patches from kernel-patches/"
+	echo "applied $n kernel patches from kernel-patches/"
 fi
 
 SUFFIX=-bt
@@ -167,25 +205,23 @@ mkdir -p "$KOUT/include/generated"
 cp "$WORK/amz/prebuilt/include/generated/trapz_generated_kernel.h" "$KOUT/include/generated/"
 cp "$WORK/amz/device/amazon/common/verity/amazon_verity.x509.pem" "$KOUT/verity-keys"
 tr -d '\r' < "$CONFIG" > "$KOUT/.config"
-[ -n "$STOCK" ] || tr -d '\r' < "$FRAGMENT" >> "$KOUT/.config"
+[ -n "$STOCK" ] || for frag in "${FRAGMENTS[@]}"; do tr -d '\r' < "$frag" >> "$KOUT/.config"; done
 
 export ARCH=arm CROSS_COMPILE=$TOOLCHAIN/bin/arm-eabi-
 # -fcommon: 3.18's dtc defines yylloc twice, which a current host gcc refuses to link.
 MAKEARGS=(-C "$SRC" O="$KOUT" HOSTCFLAGS=-fcommon USE_TRAPZ=true
-	KBUILD_BUILD_USER=techo5 KBUILD_BUILD_HOST=techo5-dot LOCALVERSION=$SUFFIX)
+	KBUILD_BUILD_USER=tater KBUILD_BUILD_HOST=tater-linux-dot LOCALVERSION=$SUFFIX)
 make -s "${MAKEARGS[@]}" olddefconfig
 if [ -z "$STOCK" ]; then
-	bad=0
-	while IFS= read -r line; do
-		line=${line%$'\r'}
-		case "$line" in CONFIG_*) grep -qx "$line" "$KOUT/.config" || { echo "not applied: $line" >&2; bad=1; };; esac
-	done < "$FRAGMENT"
-	[ $bad = 0 ] || exit 1
+	fragments_landed || exit 1
 fi
 echo "$BOARD config changes against the running kernel:"
 diff <(tr -d '\r' < "$CONFIG" | grep -v '^#' | grep . | sort) <(grep -v '^#' "$KOUT/.config" | grep . | sort) || true
 
 make "${MAKEARGS[@]}" -j"$(nproc)" zImage-dtb
+if [ -z "$STOCK" ]; then
+	fragments_landed || exit 1
+fi
 echo "release: $(cat "$KOUT/include/config/kernel.release")"
 
 name=zImage-dtb${STOCK:+-stock}
