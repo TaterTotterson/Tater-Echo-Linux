@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import json
 from pathlib import Path
+import re
 import shutil
 import sys
 import urllib.request
@@ -20,6 +21,17 @@ EXPECTED_ROLES = {
     "boot-baseline",
     "kernel-baseline",
     "rescue-baseline",
+}
+EXPECTED_TARGET_ROLES = {
+    ("checkers", "rootfs-baseline"),
+    ("checkers", "boot-baseline"),
+    ("crown", "rootfs-baseline"),
+    ("crown", "boot-baseline"),
+    ("athena", "rootfs-baseline"),
+    ("athena", "boot-baseline"),
+    ("rook", "rootfs-baseline"),
+    ("rook", "kernel-baseline"),
+    ("rook", "rescue-baseline"),
 }
 
 
@@ -43,16 +55,25 @@ def load_manifest(path: Path) -> dict:
         raise ValueError("unexpected baseline release tag")
     if release.get("kind") != "byte-identical-provenance-mirror":
         raise ValueError("baseline release must remain a provenance mirror")
+    commits = manifest.get("platform_commits", {})
+    if set(commits) != {"show", "athena", "rook"}:
+        raise ValueError("baseline platform commits must cover show, athena, and rook")
+    for platform, commit in commits.items():
+        if not isinstance(commit, str) or not re.fullmatch(r"[0-9a-f]{40}", commit):
+            raise ValueError(f"invalid {platform} platform commit")
 
     names: set[str] = set()
     covered: set[str] = set()
+    target_roles: set[tuple[str, str]] = set()
     for asset in manifest.get("assets", []):
         targets = set(asset.get("targets", []))
         if not targets or not targets <= EXPECTED_TARGETS:
             raise ValueError(f"invalid baseline targets: {sorted(targets)}")
         covered |= targets
-        if asset.get("role") not in EXPECTED_ROLES:
-            raise ValueError(f"invalid baseline role: {asset.get('role')}")
+        role = asset.get("role")
+        if role not in EXPECTED_ROLES:
+            raise ValueError(f"invalid baseline role: {role}")
+        target_roles |= {(target, role) for target in targets}
         name = asset.get("published_name", "")
         if not name or name != Path(name).name or name in names or not name.startswith("tater-echo-"):
             raise ValueError(f"invalid or duplicate published name: {name}")
@@ -67,6 +88,8 @@ def load_manifest(path: Path) -> dict:
             raise ValueError(f"invalid size for {name}")
     if covered != EXPECTED_TARGETS:
         raise ValueError(f"baseline targets are incomplete: {sorted(covered)}")
+    if target_roles != EXPECTED_TARGET_ROLES:
+        raise ValueError("baseline target/role coverage is incomplete")
     return manifest
 
 
