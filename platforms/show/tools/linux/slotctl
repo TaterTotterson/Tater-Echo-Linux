@@ -1,0 +1,353 @@
+#!/bin/sh
+# slotctl — TECHO5 root filesystem slots on the eMMC system partition
+# (porting plan M4, step 5).
+#
+# The store is the system partition (p12, 3 GB) mounted at /store. It holds two
+# complete root filesystems and a few one-line state files:
+#
+#   .techo5-store        marker: this partition is a store, not an Android system
+#   active               the slot the initramfs boots next: a or b
+#   slots/a, slots/b     the root filesystems (plain directories)
+#   slots/<x>.state      good | trial <tries left> | bad   (absent: never installed)
+#   vendor/              the unit's own LineageOS vendor tree (drivers, firmware), copied into
+#                        each slot installed without one (etc/techo5/boot.sh keeps it)
+#   rescue               present: the next boot stays in the initramfs, then removed
+#
+# .techo5-store may name the board the store belongs to (board=athena): a store that does refuses
+# a root filesystem made for another board (its etc/techo5/device.conf says T5_BOARD=), since one
+# would boot with another device's partitions and drivers. A store naming none takes any rootfs.
+#
+# The initramfs writes the name of the slot it booted into /run/techo5/slot.
+#
+# A newly installed slot is on trial for three boots. The initramfs takes one
+# try at every boot; the slot commits itself once the daemon has run for five
+# minutes (etc/techo5/boot.sh), the same test the daemon applies to its own
+# in-place updates. A slot that runs out of tries is marked bad and the other
+# slot, if good, is booted; with no good slot the initramfs stays up as the
+# rescue environment, reachable over SSH.
+#
+# Under a running slot the store is mounted read-only (the root is a bind mount
+# of one slot, so the whole partition shares the flag); every write here
+# remounts it writable and back.
+
+STORE=${STORE:-/store}
+TRIES=3
+
+usage() {
+	cat <<EOF
+usage: slotctl [-s store] <command>
+  status                  slots, their state, the active and the booted one
+  install <rootfs.tar.gz> unpack into the inactive slot, put it on trial, make it active
+                          (--keep-active: install without switching)
+  commit                  mark the booted slot good (no-op if it is)
+  switch <a|b>            boot this slot next; a bad slot goes back on trial
+  rollback                mark the booted slot bad and boot the other, good, one next
+  rescue [off]            stay in the initramfs at the next boot (one boot only)
+  next                    initramfs: choose the slot to boot and take a try; prints its name
+  rw | ro                 remount the store
+  mkstore <device> --i-know-this-erases-it
+                          format a partition as an empty store (mounts it at the store path)
+  grow <device>           grow the store's filesystem, online, to fill its partition <device>
+                          (athena: the store is written smaller than the partition)
+EOF
+	exit 1
+}
+
+die() { echo "slotctl: $*" >&2; exit 1; }
+
+is_ro() {
+	awk -v s="$STORE" '$2==s {print $4}' /proc/mounts | grep -q '^ro$\|^ro,\|,ro,\|,ro$'
+}
+
+WAS_RO=
+writable() {
+	[ -e "$STORE/.techo5-store" ] || die "$STORE is not a store"
+	if is_ro; then
+		mount -o remount,rw "$STORE" || die "cannot remount $STORE writable"
+		WAS_RO=1
+	fi
+}
+
+done_writing() {
+	sync
+	if [ -n "$WAS_RO" ]; then
+		mount -o remount,ro "$STORE" 2>/dev/null || echo "slotctl: note: $STORE left writable (busy)" >&2
+		WAS_RO=
+	fi
+}
+
+# atomic one-line file write
+put() { printf '%s\n' "$2" > "$1.tmp" && mv -f "$1.tmp" "$1"; }
+
+state() { cat "$STORE/slots/$1.state" 2>/dev/null || echo none; }
+set_state() { put "$STORE/slots/$1.state" "$2"; }
+active() { cat "$STORE/active" 2>/dev/null; }
+set_active() { put "$STORE/active" "$1"; }
+booted() { cat /run/techo5/slot 2>/dev/null; }
+other() { case "$1" in a) echo b;; b) echo a;; *) echo a;; esac; }
+release() { cat "$STORE/slots/$1/etc/techo5-release" 2>/dev/null || echo "-"; }
+valid_slot() { case "$1" in a|b) return 0;; esac; return 1; }
+# The board the store is for (.techo5-store: board=<name>), empty for any.
+store_board() { sed -n 's/^board=//p' "$STORE/.techo5-store" 2>/dev/null | tail -1; }
+
+cmd_status() {
+	[ -e "$STORE/.techo5-store" ] || die "$STORE is not a store"
+	echo "store:  $STORE ($(is_ro && echo read-only || echo writable))"
+	echo "active: $(active)"
+	echo "booted: $(booted)"
+	[ -e "$STORE/rescue" ] && echo "rescue: next boot stays in the initramfs"
+	for s in a b; do
+		if [ -d "$STORE/slots/$s" ]; then
+			echo "slot $s: $(state $s) — $(release $s)"
+		else
+			echo "slot $s: empty"
+		fi
+	done
+}
+
+cmd_next() {
+	a=$(active)
+	if [ -z "$a" ]; then
+		for s in a b; do
+			if [ "$(state $s)" = good ]; then
+				set_active $s; echo "slotctl: no active slot; $s is good" >&2; echo $s; return 0
+			fi
+		done
+		echo "slotctl: no active slot and none good" >&2
+		return 1
+	fi
+	st=$(state $a)
+	case "$st" in
+	good)
+		echo $a; return 0;;
+	trial*)
+		n=${st#trial}; n=$((n))
+		if [ $n -gt 0 ]; then
+			set_state $a "trial $((n-1))"
+			echo "slotctl: $a on trial, $((n-1)) tries left after this one" >&2
+			echo $a; return 0
+		fi
+		set_state $a bad
+		echo "slotctl: $a used all its tries without committing; marked bad" >&2;;
+	*)
+		echo "slotctl: active slot $a is $st" >&2;;
+	esac
+	o=$(other $a)
+	if [ "$(state $o)" = good ]; then
+		set_active $o
+		echo "slotctl: falling back to $o" >&2
+		echo $o; return 0
+	fi
+	echo "slotctl: no bootable slot ($a: $(state $a), $o: $(state $o))" >&2
+	return 1
+}
+
+cmd_install() {
+	keep=
+	tar=
+	for arg in "$@"; do
+		case "$arg" in
+		--keep-active) keep=1;;
+		*) tar=$arg;;
+		esac
+	done
+	[ -n "$tar" ] || usage
+	[ -f "$tar" ] || die "$tar: no such file"
+	case "$tar" in *.gz|*.tgz) z=-z;; *.xz) z=-J;; *) z=;; esac
+	a=$(active)
+	if [ -z "$a" ]; then t=a; else t=$(other $a); fi
+	[ "$t" != "$(booted)" ] || die "slot $t is the running root; refusing to overwrite it"
+	# Checked in the tarball, before the other slot (the one to fall back on) is emptied.
+	want=$(store_board)
+	if [ -n "$want" ]; then
+		got=$({ tar $z -xOf "$tar" ./etc/techo5/device.conf || tar $z -xOf "$tar" etc/techo5/device.conf; } 2>/dev/null |
+			sed -n 's/^T5_BOARD=//p' | tail -1)
+		[ "$got" = "$want" ] ||
+			die "this store is for board $want and $tar is for ${got:-another board (it names none)}; nothing installed"
+	fi
+	writable
+	rm -rf "$STORE/slots/$t" "$STORE/slots/$t.state"
+	mkdir -p "$STORE/slots/$t"
+	echo "slotctl: unpacking $tar into slot $t"
+	tar $z -xf "$tar" -C "$STORE/slots/$t" || { rm -rf "$STORE/slots/$t"; done_writing; die "unpacking failed"; }
+	for f in sbin/init usr/local/bin/techo5 etc/techo5/boot.sh etc/inittab; do
+		[ -e "$STORE/slots/$t/$f" ] || { rm -rf "$STORE/slots/$t"; done_writing; die "not a techo5 rootfs: $f missing"; }
+	done
+	# athena's /init pivots into the slot and puts the store at the slot's /store.
+	if [ -n "$want" ] && [ ! -d "$STORE/slots/$t/store" ]; then
+		rm -rf "$STORE/slots/$t"; done_writing; die "not a techo5 rootfs: store missing"
+	fi
+	# Images carry no vendor tree: the slot gets the unit's own, so every boot image's rescue
+	# environment finds the drivers in the slot too. Not on a unit whose drivers stay on a vendor
+	# partition of their own (VENDOR_DEV, athena): there the store's vendor/ is only that partition's
+	# mount point, and copying it would put the whole partition into the slot.
+	if [ -d "$STORE/vendor/lib" ] && [ -z "$(ls -A "$STORE/slots/$t/vendor" 2>/dev/null)" ] &&
+		! grep -q '^VENDOR_DEV=' "$STORE/slots/$t/etc/techo5/device.conf" 2>/dev/null; then
+		mkdir -p "$STORE/slots/$t/vendor"
+		cp -a "$STORE/vendor/." "$STORE/slots/$t/vendor/" || { rm -rf "$STORE/slots/$t"; done_writing; die "copying the vendor tree into slot $t failed"; }
+		echo "slotctl: slot $t: vendor tree from the store"
+	fi
+	set_state $t "trial $TRIES"
+	[ -n "$keep" ] || set_active $t
+	done_writing
+	echo "slotctl: slot $t: $(release $t) — trial $TRIES; active: $(active)"
+}
+
+cmd_commit() {
+	s=$(booted)
+	[ -n "$s" ] || die "not booted from a slot"
+	case "$(state $s)" in
+	good) echo "slotctl: slot $s is already good"; return 0;;
+	trial*) ;;
+	*) die "slot $s is $(state $s); use switch to put it back on trial";;
+	esac
+	writable
+	set_state $s good
+	done_writing
+	echo "slotctl: slot $s committed (good)"
+}
+
+cmd_switch() {
+	s=$1
+	valid_slot "$s" || usage
+	[ -d "$STORE/slots/$s" ] || die "slot $s is empty"
+	writable
+	case "$(state $s)" in
+	good|trial*) ;;
+	*) set_state $s "trial $TRIES";;
+	esac
+	set_active $s
+	done_writing
+	echo "slotctl: next boot: slot $s ($(state $s))"
+}
+
+cmd_rollback() {
+	s=$(booted)
+	[ -n "$s" ] || die "not booted from a slot"
+	o=$(other $s)
+	[ "$(state $o)" = good ] || die "slot $o is $(state $o), nothing good to roll back to; use switch"
+	writable
+	set_state $s bad
+	set_active $o
+	done_writing
+	echo "slotctl: slot $s marked bad; next boot: slot $o"
+}
+
+cmd_rescue() {
+	writable
+	if [ "$1" = off ]; then
+		rm -f "$STORE/rescue"; echo "slotctl: next boot is normal"
+	else
+		: > "$STORE/rescue"; echo "slotctl: next boot stays in the initramfs (rescue)"
+	fi
+	done_writing
+}
+
+cmd_mkstore() {
+	dev=$1
+	[ -b "$dev" ] || die "$dev is not a block device"
+	[ "$2" = "--i-know-this-erases-it" ] || die "refusing without --i-know-this-erases-it"
+	grep -q "^$dev " /proc/mounts && die "$dev is mounted; unmount it first"
+	mkfs.ext4 -q -F -L techo5-store "$dev" || die "mkfs failed"
+	mkdir -p "$STORE"
+	mount -t ext4 -o noatime "$dev" "$STORE" || die "mounting the new store failed"
+	: > "$STORE/.techo5-store"
+	mkdir -p "$STORE/slots"
+	sync
+	echo "slotctl: $dev is an empty store, mounted at $STORE"
+}
+
+# grow: the store's filesystem out to the end of its partition, while it is mounted (online: the
+# kernel adds the block groups; resize2fs only asks it to). On athena the store is the root the
+# kernel booted, written smaller than the partition so that it installs quickly; the second slot
+# needs the rest. Run by athena's /init on every boot before anything else writes to the store, so
+# it happens once, at the first boot, and is a no-op after; or by hand from the rescue shell.
+#
+# Careful, because the store holds the only working system:
+#  - a filesystem whose last write was not finished cleanly (state other than "clean") is left
+#    alone: growing one that may be inconsistent could make it worse. e2fsck from TWRP first.
+#  - the group descriptors the bigger filesystem needs must fit in the blocks mke2fs reserved
+#    for them (resize_inode), so the kernel never has to change the layout (to meta_bg): the store
+#    stays the kind of filesystem Amazon's kernel already mounts. A partition too big for that is
+#    refused.
+#  - only where the store is the root (STORE=/): under a running slot the root is a read-only
+#    bind of the slot, and the kernel would refuse the grow anyway.
+#  - no feature is added; the features are compared before and after and a change is reported.
+# What is not covered: a power cut in the middle of the grow, on a filesystem with no journal. It
+# takes a second or two; the way back is the installer, or e2fsck from TWRP.
+fs_field() { printf '%s\n' "$1" | sed -n "s/^$2:[[:space:]]*//p" | head -1; }
+
+cmd_grow() {
+	dev=$1
+	[ -b "$dev" ] || die "$dev is not a block device"
+	[ -e "$STORE/.techo5-store" ] || die "$STORE is not a store"
+	[ "$STORE" = / ] || die "grow runs where the store is the root: athena's /init at every boot, or the rescue shell (STORE=/ slotctl grow $dev)"
+	sectors=$(cat "/sys/class/block/${dev##*/}/size" 2>/dev/null)
+	[ -n "$sectors" ] && [ "$sectors" -gt 0 ] || die "cannot read the size of $dev"
+	info=$(dumpe2fs -h "$dev" 2>/dev/null) || die "cannot read the superblock on $dev"
+	count=$(fs_field "$info" 'Block count')
+	bsize=$(fs_field "$info" 'Block size')
+	per=$(fs_field "$info" 'Blocks per group')
+	first=$(fs_field "$info" 'First block')
+	rgdt=$(fs_field "$info" 'Reserved GDT blocks')
+	dsize=$(fs_field "$info" 'Group descriptor size')
+	fstate=$(fs_field "$info" 'Filesystem state')
+	features=$(fs_field "$info" 'Filesystem features')
+	[ -n "$count" ] && [ -n "$bsize" ] && [ -n "$per" ] || die "$dev holds no ext4 filesystem slotctl can read"
+	# The store this is run on has to be the filesystem on $dev, or this would grow another one.
+	[ "$(mountpoint -d "$STORE" 2>/dev/null)" = "$(cat "/sys/class/block/${dev##*/}/dev" 2>/dev/null)" ] ||
+		die "$dev is not the filesystem mounted at $STORE"
+	label=$(fs_field "$info" 'Filesystem volume name')
+	want=$((sectors / (bsize / 512)))
+	echo "slotctl: $dev: filesystem $((count * bsize / 1048576)) MiB, partition $((sectors / 2048)) MiB"
+	if [ $((want - count)) -lt $((4194304 / bsize)) ]; then
+		echo "slotctl: the store already fills $dev"
+		return 0
+	fi
+	[ "$fstate" = clean ] || die "the filesystem on $dev is '$fstate'; check it with e2fsck from TWRP before growing it"
+	case " $features " in *" resize_inode "*) ;; *) die "the filesystem on $dev has no room reserved to grow (no resize_inode); not growing it";; esac
+	# Descriptors per block: 32 bytes each without 64bit.
+	per_block=$((bsize / ${dsize:-32}))
+	groups_now=$(( (count - ${first:-0} + per - 1) / per ))
+	groups_then=$(( (want - ${first:-0} + per - 1) / per ))
+	gdt_now=$(( (groups_now + per_block - 1) / per_block ))
+	gdt_then=$(( (groups_then + per_block - 1) / per_block ))
+	[ "$gdt_then" -le $((gdt_now + ${rgdt:-0})) ] ||
+		die "growing to $((sectors / 2048)) MiB needs $gdt_then descriptor blocks and only $((gdt_now + ${rgdt:-0})) are reserved; not growing"
+	writable
+	echo "slotctl: growing $dev ($label) to fill its partition, $groups_now -> $groups_then block groups"
+	if ! resize2fs "$dev" > /tmp/slotctl-grow.log 2>&1; then
+		done_writing
+		cat /tmp/slotctl-grow.log >&2
+		die "resize2fs failed; the store is as it was (or check it with e2fsck from TWRP)"
+	fi
+	done_writing
+	info=$(dumpe2fs -h "$dev" 2>/dev/null)
+	after=$(fs_field "$info" 'Filesystem features')
+	[ "$after" = "$features" ] || echo "slotctl: NOTE: the features changed from '$features' to '$after'" >&2
+	echo "slotctl: the store is now $(( $(fs_field "$info" 'Block count') * bsize / 1048576 )) MiB, $(fs_field "$info" 'Inode count') inodes"
+}
+
+while [ $# -gt 0 ]; do
+	case "$1" in
+	-s) STORE=$2; shift 2;;
+	-h|--help) usage;;
+	*) break;;
+	esac
+done
+[ $# -gt 0 ] || usage
+cmd=$1; shift
+case "$cmd" in
+status) cmd_status;;
+next) cmd_next;;
+install) cmd_install "$@";;
+commit) cmd_commit;;
+switch) cmd_switch "$@";;
+rollback) cmd_rollback;;
+rescue) cmd_rescue "$@";;
+rw) writable; WAS_RO=; echo "slotctl: $STORE writable";;
+ro) sync; mount -o remount,ro "$STORE" && echo "slotctl: $STORE read-only";;
+mkstore) cmd_mkstore "$@";;
+grow) [ $# -eq 1 ] || usage; cmd_grow "$1";;
+*) usage;;
+esac

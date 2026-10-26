@@ -1,0 +1,20 @@
+bin/
+*.img
+*.zip
+*.apk
+*.log
+.DS_Store
+Thumbs.db
+__pycache__/
+# probe binaries built at the root by hand
+/audioprobe
+/fbprobe
+/rebootto
+/btbridge
+
+# Build inputs (docs/building.md): never committed.
+inputs/
+
+# Per-unit backups and installer keys: never committed.
+backups/
+build/
