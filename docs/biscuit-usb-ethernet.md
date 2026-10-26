@@ -18,8 +18,6 @@ route on 2026-10-25.
   patch.
 - `0049-usbnet-report-probe-failures.patch` makes otherwise silent probe failures
   visible.
-- `0050-r8152-3.18-eee-helpers.patch` lets the optional vendor-driver fallback
-  compile against 3.18.
 - `build-kernel.sh` grafts usbnet files omitted from Amazon's partial GPL
   source archive and verifies every fragment line in the final configuration.
 
@@ -35,7 +33,8 @@ The firmware-side `tater-usb-ethernet` controller is intentionally opt-in. It
 keeps Wi-Fi up during the probe, switches only after Ethernet has an address
 and route, and restores USB serial plus Wi-Fi on disable or link loss.
 
-Do not publish the old loose `r8152.ko` test artifact. Publish the kernel,
-configuration, source revision, and SHA-256 together as a Tater Linux Biscuit
-release. Radar and the other board families stay disabled until their USB
-role, power, enumeration, and recovery paths are verified independently.
+Do not publish the old loose `r8152.ko` test artifact; the unused vendor driver
+is disabled. Publish the kernel, configuration, source revision, and SHA-256
+together as a Tater Linux Biscuit release. Radar and the other board families
+stay disabled until their USB role, power, enumeration, and recovery paths are
+verified independently.

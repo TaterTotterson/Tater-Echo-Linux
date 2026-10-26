@@ -156,15 +156,13 @@ if [ -z "$STOCK" ]; then
 	tar -xJf "$DL/${LNX_URL##*/}" -C "$WORK" linux-3.18.19/net/bluetooth linux-3.18.19/drivers/bluetooth \
 		linux-3.18.19/include/net/bluetooth
 	# USB Ethernet: the MII core and usbnet/cdc_ether that Amazon's build never compiled,
-	# needed for the Realtek RTL8152 CDC-ECM adapter (kernel-usbnet.fragment). r8152 is
-	# grafted too (built as a module, plan B for the adapter's vendor mode). USB announce
+	# needed for the Realtek RTL8152 CDC-ECM adapter (kernel-usbnet.fragment). USB announce
 	# needs no graft: Amazon's own hub.c carries it behind CONFIG_USB_ANNOUNCE_NEW_DEVICES.
 	tar -xJf "$DL/${LNX_URL##*/}" -C "$WORK" linux-3.18.19/drivers/net/mii.c \
 		linux-3.18.19/drivers/net/usb/usbnet.c linux-3.18.19/drivers/net/usb/cdc_ether.c \
-		linux-3.18.19/drivers/net/usb/r8152.c \
 		linux-3.18.19/include/linux/usb/usbnet.h
 	for f in drivers/net/mii.c drivers/net/usb/usbnet.c drivers/net/usb/cdc_ether.c \
-		drivers/net/usb/r8152.c include/linux/usb/usbnet.h; do
+		include/linux/usb/usbnet.h; do
 		if [ -e "$SRC/$f" ]; then
 			cmp -s "$SRC/$f" "$WORK/linux-3.18.19/$f" || echo "note: Amazon's $f differs from upstream; kept Amazon's"
 		else

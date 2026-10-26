@@ -1,8 +1,8 @@
 # kernel-usbnet.fragment — what the Dot's kernel additionally turns on for USB Ethernet on
 # the micro-USB port. Applied by build-kernel.sh after kernel-bt.fragment; every other
 # option stays as Amazon built it. The adapter is a Realtek RTL8152 in CDC-ECM mode
-# (0bda:8152, config 2 — verified by descriptor dump 2026-10-25; see
-# Tater-Echo-Firmware docs/biscuit-usb-ethernet.md §2c).
+# (0bda:8152, config 2 — verified by descriptor dump 2026-10-25; see the
+# Tater-Echo-Firmware docs/biscuit-usb-ethernet.md record).
 #
 # CONFIG_CMD_MODE_CHANGE enables Amazon's own forced-mode switch, /proc/mchange. With it,
 # "echo host > /proc/mchange" runs MediaTek's full host-entry sequence without needing the
@@ -12,11 +12,11 @@
 # /proc/mchange" goes back to gadget mode (the serial console is the gadget, so entering
 # host mode drops the console and it returns after switching back). VBUS must come from
 # the cable: under CMD_MODE_CHANGE the driver deliberately does not drive its VBUS GPIO.
-# TODO(verify-on-device): /proc/mchange exists, "echo host" enumerates the adapter,
-# "echo device" restores the serial console. VERIFIED 2026-10-25 (host-mode test).
+# Verified on-device 2026-10-25: host mode enumerates the adapter and device
+# mode restores the serial console.
 CONFIG_CMD_MODE_CHANGE=y
 # usbcore announces every new USB device (descriptors, chosen config) in dmesg;
-# Amazon's tarball omits drivers/usb/core/announce.c, grafted by build-kernel.sh.
+# Linux 3.18 keeps this code in Amazon's existing drivers/usb/core/hub.c.
 CONFIG_USB_ANNOUNCE_NEW_DEVICES=y
 # CDC-ECM, built in so the rootfs carries no .ko and insmod ordering is moot.
 # usbnet selects MII; CDCETHER depends on usbnet. The files are grafted from
@@ -53,9 +53,8 @@ CONFIG_USB_NET_CDCETHER=y
 # CONFIG_USB_NET_CDC_MBIM is not set
 # CONFIG_USB_NET_QMI_WWAN is not set
 # CONFIG_USB_NET_HUAWEI_CDC_NCM is not set
-# Realtek's own driver, built as a module in the rootfs: plan B for the RTL8152's
-# vendor mode (config 1). It must not be =y together with CDCETHER (both would
-# race to bind the CDC control interface); as a module it only loads on request.
-CONFIG_USB_RTL8152=m
+# The verified configuration is CDC-ECM. Do not build the unused vendor-mode
+# driver or ship an untracked module beside the kernel.
+# CONFIG_USB_RTL8152 is not set
 # (GL6200A/KAWETH/SIERRA_NET and friends do not exist as symbols in Amazon's
 # trimmed usb20 Kconfig; the fragment check proved that on the first build.)
