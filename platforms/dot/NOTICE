@@ -1,0 +1,124 @@
+TECHO5 Dot builds on the work of other open-source projects.
+
+TECHO5, https://github.com/HuskerMinion/techo5 (MIT)
+  The echod daemon (dot build), the Linux image tooling and the rootfs slot design.
+
+EchoLocal, https://github.com/ygelfand/echolocal
+  Copyright (c) 2026 Yuri Gelfand, MIT License.
+  The Echo Dot 2 daemon this project is built on: the daemon in every release (TECHO5's echod, dot
+  build) began as EchoLocal's code, vendored whole, and much of it still is. Hardware facts from it
+  are recorded in docs/hardware.md. EchoLocal's license applies to that code:
+
+  MIT License
+
+  Copyright (c) 2026 Yuri Gelfand
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files (the "Software"), to deal
+  in the Software without restriction, including without limitation the rights
+  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  copies of the Software, and to permit persons to whom the Software is
+  furnished to do so, subject to the following conditions:
+
+  The above copyright notice and this permission notice shall be included in all
+  copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+  SOFTWARE.
+
+EchoMuse / emOS, https://github.com/wilbowes/EchoMuse
+  Copyright (c) 2026 Wil Bowes, MIT License.
+  Linux bring-up and microphone array findings on biscuit, cited in docs/.
+
+proffalken (@proffalken), https://github.com/proffalken
+  "Installing TECHO5 Dot on Linux", https://gist.github.com/proffalken/377ae50146affe1886dddaaacb87926b
+  The step-by-step install (Fire OS 6574.1 in both slots, root, trusting the adb key) and the Linux
+  fixes (byte-safe partition backups, serial console lookup, forward-slash paths) that
+  tools/install-dot.py and TECHO5's docs/getting-started.md are based on.
+
+amonet, kaeru and the biscuit TWRP tree, https://github.com/R0rt1z2
+  The unlock and bootloader payload this project depends on (not redistributed).
+
+lineageos-echo-show-camera, https://github.com/jxlarrea/lineageos-echo-show-camera
+  Echo cancellation and microphone array measurements on the Echo Show family, cited in docs/.
+
+bluez-alsa, https://github.com/arkq/bluez-alsa
+  Copyright (c) arkq, MIT License. tools/linux/bluealsa-patches carries upstream commit 6ccf455;
+  the release root filesystem includes bluealsa 4.3.1 built from source with it.
+
+Linux kernel, https://git.kernel.org (GPL-2.0)
+  Every release ships a kernel: techo5-dot-kernel-bt.zImage-dtb, Linux 3.18.19 for 32-bit ARM. It is
+  GPL-2.0, and this is where its source is. Releases after dot-v1.0.18 also ship the Echo 2nd gen's,
+  techo5-dot-kernel-bt-radar.zImage-dtb, built the same way; where it differs is noted below.
+    - Base: Amazon's GPL source release for the Echo Dot (2nd Generation),
+      Echo_Dot_src-6.5.7.1-20251024, kernel/mediatek/mt8163/3.18_hl inside platform.tar. Amazon
+      publish their source releases at
+      https://www.amazon.com/gp/help/customer/display.html?nodeId=G202096090 (docs/hardware.md).
+      The Echo 2nd gen's: Amazon's GPL source release for the Echo (2nd Generation),
+      Echo_v2_src-6.5.7.1-20251024, the same path inside its platform.tar.
+    - Bluetooth: Amazon's tarball carries only the files their build compiles, so net/bluetooth,
+      drivers/bluetooth and include/net/bluetooth are taken from upstream linux-3.18.19, and only
+      where Amazon's tree has no file of its own.
+    - Changes: the 48 patches in tools/linux/kernel-patches, applied in order, each naming its
+      upstream commit, the stable backport it came from, its CVE and any 3.18 adaptation.
+    - Configuration: built from the running kernel's own config, recorded as
+      docs/dumps/biscuit-fireos6-echolocal-boot-3.18.19.config (the Echo 2nd gen's:
+      docs/dumps/radar-fireos6-boot-3.18.19.config).
+    - The script that does all of it is tools/linux/build-kernel.sh, and docs/building.md is how to
+      run it. A rebuild uses the same source, configuration and patches as the shipped image. It is
+      not guaranteed to come out byte for byte the same: the build time and the build directory are
+      compiled in.
+  Boot images, which wrap that kernel with a unit's own ramdisk, are built per unit and not
+  distributed.
+
+  Releases from dot-v1.0.31 also ship Bluetooth kernel modules for the Echo Dot 3rd gen
+  (bluetooth.ko, hci_vhci.ko and cmac.ko, Linux 4.4.22 for 64-bit ARM, in
+  techo5-donut-rootfs-<version>.tar.gz under /usr/lib/techo5/modules). They are GPL-2.0, and each
+  release carries their complete source: techo5-donut-bt-modules-source.tar.xz.
+    - Base: Amazon's GPL source release for the Echo Input, Echo_Input_src-6.5.4.7-20210719, as
+      imported in https://github.com/bengris32/android_kernel_amazon_cupcake (commit d16134f). Amazon
+      has not published the Echo Dot 3rd gen's; the Echo Input's is the same 4.4.22 MT8516 tree.
+    - Bluetooth: net/bluetooth, drivers/bluetooth, include/net/bluetooth, crypto/cmac.c and two build
+      files are taken unchanged from upstream linux-4.4.22, only where Amazon's tree has no file of its
+      own (tools/linux/bt-modules/added-from-4.4.22.txt). Nothing else is changed.
+    - Configuration: the tree's cupcake_defconfig with Bluetooth, the virtual HCI driver and CMAC
+      turned on as modules.
+    - The script that does all of it is tools/linux/build-bt-modules.sh. It builds in a fixed
+      directory, so no path of the machine that built them is compiled in.
+  The Echo Dot 3rd gen's kernel itself is the unit's own, from its own boot partition, and is never
+  distributed.
+
+wpa_supplicant, https://w1.fi/wpa_supplicant/
+  Copyright (c) Jouni Malinen and contributors, BSD license. The Echo Dot 3rd gen's root filesystem
+  carries Alpine's 2.11 rebuilt with tools/linux/wpa-patches/0100-donut-no-wmm-replay-counters.patch
+  (tools/linux/build-wpa-supplicant.sh).
+
+Shairport Sync, nqptp and librespot
+  Both boards' root filesystems carry three programs built by TECHO5's tools/linux scripts, with their
+  license files in /usr/share/licenses and in tools/linux/licenses here:
+    - Shairport Sync 5.6.1, https://github.com/mikebrady/shairport-sync, the AirPlay 2 receiver, as
+      /usr/local/bin/techo5-shairport-sync. MIT, with parts under BSD and ISC licenses (its LICENSES
+      file). Copyright (c) 2014-2026 Mike Brady and the other authors it names. Unmodified; FFmpeg's
+      ALAC and AAC decoders and swresample (LGPL-2.1-or-later, https://ffmpeg.org) are linked in
+      statically, and TECHO5's tools/linux/build-shairport-sync.sh rebuilds or relinks it.
+    - nqptp 1.2.9, https://github.com/mikebrady/nqptp, the clock AirPlay 2 needs, as
+      /usr/local/bin/techo5-nqptp. GPL-2.0. Changed by TECHO5's tools/linux/nqptp-run-as-user.patch
+      (adds -u <user>), which is GPL-2.0 too.
+    - librespot 0.8.0, https://github.com/librespot-org/librespot, the Spotify Connect receiver, as
+      /usr/local/bin/techo5-librespot. MIT, Copyright (c) 2015 Paul Lietar. Changed by TECHO5's
+      tools/linux/librespot-volume-fifo.patch (adds --volume-fifo); its Rust dependencies, named by its
+      Cargo.lock, keep their own licenses (most MIT or Apache-2.0).
+  Their source archives, with the patches, licenses and build scripts, are attached to each release
+  from dot-v1.0.35 on (techo5-third-party-sources*.tar.gz).
+
+Alpine Linux, https://alpinelinux.org
+  The release root filesystem is assembled from Alpine 3.24 armv7 packages, unmodified except
+  bluealsa; each package keeps its own license, and its source is published by Alpine.
+
+docs/dumps/*.config are kernel configurations generated from Amazon's GPL 3.18.19 kernel for
+biscuit and radar, as embedded in the published boot images.
