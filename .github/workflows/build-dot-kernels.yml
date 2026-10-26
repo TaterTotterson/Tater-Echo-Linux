@@ -11,6 +11,8 @@ jobs:
     name: ${{ matrix.target }} kernel
     runs-on: ubuntu-24.04
     timeout-minutes: 90
+    env:
+      TATER_DOT_PLATFORM_COMMIT: d5867a594f1707964f2ee58fbb773da522a3a6cd
     strategy:
       fail-fast: false
       matrix:
@@ -18,7 +20,12 @@ jobs:
           - biscuit
           - radar
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Checkout pinned Dot platform
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: d5867a594f1707964f2ee58fbb773da522a3a6cd
+          path: dot-platform
+          fetch-depth: 1
       - name: Build target kernel
         shell: bash
         env:
@@ -27,9 +34,10 @@ jobs:
           TOOLCHAIN: /tmp/tater-toolchain/arm-eabi-4.8
         run: |
           set -euo pipefail
+          test "$(git -C dot-platform rev-parse HEAD)" = "$TATER_DOT_PLATFORM_COMMIT"
           out="$PWD/dist/$TARGET"
           mkdir -p "$out"
-          bash platforms/dot/tools/linux/build-kernel.sh --board "$TARGET" -o "$out"
+          bash dot-platform/tools/linux/build-kernel.sh --board "$TARGET" -o "$out"
           mv "$out/zImage-dtb" "$out/tater-echo-$TARGET-kernel.zImage-dtb"
           mv "$out/zImage-dtb.config" "$out/tater-echo-$TARGET-kernel.config"
           mv "$out/zImage-dtb.System.map" "$out/tater-echo-$TARGET-kernel.System.map"
@@ -37,6 +45,6 @@ jobs:
           cat "$out/SHA256SUMS"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
-          name: tater-echo-${{ matrix.target }}-kernel-${{ github.sha }}
+          name: tater-echo-${{ matrix.target }}-kernel-${{ env.TATER_DOT_PLATFORM_COMMIT }}
           path: dist/${{ matrix.target }}/
           if-no-files-found: error
