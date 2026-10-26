@@ -16,7 +16,10 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Validate satellite boundaries
-        run: python3 tools/validate_targets.py
+        run: |
+          python3 tools/validate_targets.py
+          python3 tools/fetch_baselines.py --check
+          python3 tools/audit_usb_ethernet.py
       - name: Parse platform build entry points
         shell: bash
         run: |
@@ -28,4 +31,7 @@ jobs:
           bash -n platforms/show/tools/linux/athena/kernel/build.sh
           bash -n platforms/spot/tools/linux/build-kernel.sh
           bash -n platforms/spot/tools/linux/build-image.sh
-          python3 -m py_compile tools/validate_targets.py
+          python3 -m py_compile \
+            tools/validate_targets.py \
+            tools/fetch_baselines.py \
+            tools/audit_usb_ethernet.py

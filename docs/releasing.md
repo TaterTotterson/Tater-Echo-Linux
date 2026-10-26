@@ -47,6 +47,17 @@ based directly on the previously pinned Dot source commit and contains only
 the Tater USB Ethernet kernel integration. Its Biscuit and Radar images,
 configs, System maps, and checksums are published separately.
 
+The non-Dot inputs are also recorded in
+[`baselines/satellite-baselines-v1.json`](../baselines/satellite-baselines-v1.json).
+The manual **Build satellite baseline mirror** workflow verifies the original
+byte counts and SHA-256 digests, then emits Tater-named copies with provenance
+and checksums. These copies are custody mirrors, not rebuilds; a Tater-built
+replacement still requires the migration gates above.
+
+Static USB Ethernet readiness and the remaining hardware boundaries are tracked
+in [`usb-ethernet-readiness.md`](usb-ethernet-readiness.md). The audit runs in CI
+and must remain fail-closed for Athena's peripheral-only device tree.
+
 Historical `techo5-*` paths and names are compatibility interfaces inherited
 by installed systems and rescue tooling. New repository-level names are
 Tater-first; compatibility names are removed only through a separately tested
