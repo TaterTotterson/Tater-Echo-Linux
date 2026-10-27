@@ -452,7 +452,9 @@ payload, so the header size must stay and the new bundle must fit the old
 6105-byte slot. The monochrome 315×170 Tater mark compresses to about 2 KB and the rest of the slot
 is zero-padded. The write path was proved on hardware 2026-09-15; `fastboot flash expdb` accepted it. That patched slot is
 `tools/boot-logo/tater-wordmark.bin`, and `install-show.py` writes it from TWRP on a Show 5 2nd gen
-whose kaeru is amonet-cronos v2.0.1's (checked by hash), then reads expdb back (`put_logo`). The Show 8
+whose kaeru is amonet-cronos v2.0.1's (checked by hash), then reads expdb back (`put_logo`). The Show 5
+1st gen (checkers) has the same slot at offset 335308 in a 379309-byte kaeru image; the stock image,
+single pointer, 315×170 decode and complete `expdb` backup were verified on hardware 2026-10-26. The Show 8
 (crown) carries the same Amazon wordmark slot, byte for byte, at file offset 288716 of amonet-crown's
 kaeru, and runs the same file there; its `lk` must stay stock too (patched, it relocked the unit). A cold
 boot is the real test: `fastboot continue` resumes the kaeru already in RAM and proves nothing. `swdl` (p11) holds an Android boot image (Amazon's recovery/download

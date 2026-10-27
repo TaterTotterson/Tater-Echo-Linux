@@ -24,6 +24,18 @@ lib = sys.modules.get('techo5lib') or __import__('techo5lib')
 IDS = ('1d6b', '0104')
 
 
+class BootLogo(unittest.TestCase):
+    def test_boot_logo_uses_twrps_notrunc_capable_toybox(self):
+        self.assertEqual('/sbin/toybox dd', inst.TWRP_DD)
+
+    def test_checkers_bootloader_fingerprint_is_pinned(self):
+        self.assertEqual({
+            'offset': 335308,
+            'length': 379309,
+            'stock': 'd578c12a2023cd41c3b158f1a74622fd17202aee061a188fa4df0c1384e149fc',
+        }, inst.LOGO_KAERU['checkers'])
+
+
 class Getvar(unittest.TestCase):
     def test_answer(self):
         out = 'kaeru-version: 2.0.0\nFinished. Total time: 0.001s'
