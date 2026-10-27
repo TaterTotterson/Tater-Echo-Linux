@@ -58,6 +58,7 @@ WIFI_MODULE = 'vendor/lib/modules/amzn-bcmdhd.ko'
 # (docs/hardware.md, "Boot logo"): 480x480, 12096 bytes at this offset.
 LOGO_OFFSET = 431416
 LOGO_SLOT = 12096
+LOGO_SHA256 = '2c8d54f6987cef2e0877360e873191bfc48a35a13e8d7f42e0ecb987f2df860d'
 
 
 def build_boot_image(rescue, lineage_boot, alpine_tgz, kernel, out):
@@ -150,7 +151,7 @@ def main():
     ap.add_argument('--no-bluetooth', action='store_true', help="keep LineageOS's kernel, which has no Bluetooth")
     ap.add_argument('--kernel', help='a kernel you built (tools/linux/build-kernel.sh) instead of the release\'s')
     ap.add_argument('--rootfs', help='a root filesystem you built instead of the release\'s')
-    ap.add_argument('--logo', action='store_true', help="replace the bootloader's Amazon picture with TECHO5's (needs Pillow)")
+    ap.add_argument('--logo', action='store_true', help="replace the bootloader's Amazon picture with Tater's")
     ap.add_argument('--lineage-zip', help='install from TWRP: the LineageOS 18.1 zip for rook, installed only for its drivers')
     ap.add_argument('--wifi', help="a Wi-Fi network to join (its passphrase is asked for); needed from TWRP, since the Spot has no Wi-Fi page")
     ap.add_argument('--wifi-passphrase-file', help='a file holding the --wifi passphrase, for running from a script')
@@ -185,8 +186,6 @@ def main():
 
     # ------------------------------------------------------------------------------------ 1. checks
     step('checks')
-    if a.logo and subprocess.run([sys.executable, '-c', 'import PIL'], stderr=subprocess.DEVNULL).returncode != 0:
-        fail('--logo needs Pillow: %s -m pip install pillow' % os.path.basename(sys.executable))
     missing = [b for b in ('expdb.img', 'lk.img', 'recovery.img', 'system.img') if not os.path.exists(os.path.join(backup, b))]
     if missing and twrp:
         # Before anything is written: the same backup backup-spot.py takes, which is what makes a bad flash
@@ -283,18 +282,14 @@ def main():
     note('boot image %d bytes' % os.path.getsize(boot_out))
     logo_chunk = os.path.join(backup, 'expdb-logo-chunk.bin')
     if a.logo:
-        patched = os.path.join(backup, 'expdb-techo5.img')
-        r = subprocess.run([sys.executable, os.path.join(rescue, 'host', 'patch-lk-logo.py'), os.path.join(backup, 'expdb.img'), patched,
-                            os.path.join(repo_root(), 'logo', 'spot-boot-480.png'), '--bundle', str(LOGO_OFFSET),
-                            '--size', '480x480', '--in-place', '--colors', '24'])
-        if r.returncode != 0:
-            fail('patch-lk-logo.py failed')
-        with open(patched, 'rb') as f:
-            f.seek(LOGO_OFFSET)
-            chunk = f.read(LOGO_SLOT)
+        source = os.path.join(repo_root(), 'logo', 'tater-boot-480.bin')
+        with open(source, 'rb') as f:
+            chunk = f.read()
+        if len(chunk) != LOGO_SLOT or hashlib.sha256(chunk).hexdigest() != LOGO_SHA256:
+            fail('the bundled Tater boot logo failed verification')
         with open(logo_chunk, 'wb') as f:
             f.write(chunk)
-        note('bootloader picture prepared')
+        note('monochrome Tater bootloader picture prepared')
     if a.build_only:
         print('\nBuild only: boot image %s and root filesystem %s; nothing written to the unit.' % (boot_out, rootfs))
         return

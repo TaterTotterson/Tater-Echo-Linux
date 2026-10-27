@@ -193,17 +193,18 @@ BR/EDR + LE; an LE scan heard 136 devices. The daemon's Bluetooth audio (BlueZ, 
 pause) is the Show's; pairing is on the settings dial and connects the strongest audio device in pairing
 mode it hears, as on the Dot. Boot image: `build-image.sh` with `KERNEL=<Image.gz-dtb>`.
 
-## M6b — TECHO5 boot logos
+## M6b — Tater boot logos
 
-Replace Amazon's boot screens with TECHO5's, as the Show got: the bootloader's logo partition (`logo`,
+Replace Amazon's boot screens with Tater's, as the Show got: the bootloader's logo partition (`logo`,
 p5, 1 MB, backed up) and the image kaeru draws in hacked fastboot, then the Linux initramfs's own
 splash. TECHO5's `tools/linux/patch-lk-logo.py` and its kaeru rebuild are the starting point; the
 Spot's images are 480×480 and have to read inside the circle. The originals stay in `backups/`.
 
-**Done 2026-09-16.** The `logo` partition is empty here too. LK (stock in `lk`, and kaeru's copy in
+**Done 2026-09-16; rebranded for Tater in 2026-10.** The `logo` partition is empty here too. LK (stock in `lk`, and kaeru's copy in
 `expdb`, which is what boots) carries two bundles: the 480×480 Amazon logo (file offset 431416, a
 12096-byte slot, one pointer) and a 408×216 battery. `patch-lk-logo.py --bundle 431416 --size 480x480
---in-place --colors 24` puts `logo/spot-boot-480.png` (the TECHO5 mark, 280 px wide on black) into that
+--in-place` originally proved the slot. The current installer uses the fixed, verified
+`logo/tater-boot-480.bin` payload (a monochrome Tater mark on black) in that
 slot; only those 12096 bytes of `expdb` change, written with `dd` from the rescue initramfs after
 checking the partition against its backup, and read back. The Spot boots through it. Undo: write the
 `expdb` backup back. The picture stays up until the daemon draws the clock, so no splash of its own.

@@ -28,7 +28,7 @@ Building it yourself: [docs/building.md](docs/building.md).
 First unit, 2026-09-16: unlocked and backed up (M0), then TECHO5 Linux from trial slots on the old
 `system` partition (M2, M3): voice turns with Home Assistant, the round screen with a touch ring menu,
 weather, timers and night dimming (M5), Bluetooth audio through a rebuilt kernel (M6), and TECHO5's
-mark in place of Amazon's boot logo (M6b). `tools/install-spot.py` (M7) does it in one command from
+Tater mark in place of Amazon's boot logo (M6b). `tools/install-spot.py` (M7) does it in one command from
 LineageOS. What exists:
 
 - [docs/hardware.md](docs/hardware.md): what is known about `rook` from the unlock, TWRP, LineageOS

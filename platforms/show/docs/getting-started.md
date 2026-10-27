@@ -298,7 +298,7 @@ is built on, runs on the unlocked Dot's Fire OS 6 with its own installer, and is
    the boot image, touching nothing else. The second finds the Spot, asks what to call it in Home
    Assistant, asks once, with a summary, before anything is erased, then replaces LineageOS with TECHO5,
    with Bluetooth, and waits for the first boot. For a script: `--serial <serial> --name "Kitchen" --force`. `--logo` also replaces the bootloader's
-   Amazon picture (needs `python3 -m pip install pillow`).
+   Amazon picture with the bundled monochrome Tater mark.
    *Check:* the round screen shows the TECHO5 clock.
 7. **Add it to Home Assistant**: see below.
 
