@@ -67,6 +67,26 @@ reasoning; each one checks its anchors and is a no-op on a tree it has already p
 | `patch-thermal-devinfo.py` | auxadc_thermal: when the efuse reads as zeros (Amazon's secure firmware hides it from Linux), take the thermal calibration from the copy LK puts in `/chosen` as `atag,devinfo`. Without it the driver used default values and read several degrees off. |
 | `patch-camera.py` | The front camera, OV13855 -> CSI-2 D-PHY -> seninf -> CAMSV -> memory. Mainline has no MediaTek camera receive path, and the MT8183 ISP itself is only ever programmed by the SCP firmware, so CAMSV writes the raw frames and echod develops them. Adds `src/camera/isp` (the seninf and CAMSV drivers from [vpavlin/mt8183-camera](https://github.com/vpavlin/mt8183-camera), with four changes marked `athena:`), the `mediatek,mt8183-csi-rx` compatible in the mainline CSI-2 PHY driver, and `src/camera/ov13855.c`, a sensor driver with Rockchip's register tables. 2112x1568 binned at 30 frames a second, packed 10-bit. |
 
+## USB OTG and Ethernet adapters
+
+Athena uses the mainline MTU3 controller in dual-role mode. Its external
+micro-USB connector has three independently modelled stock signals: GPIO41 is
+the active-low ID input, GPIO165 detects incoming VBUS, and GPIO150 enables the
+5 V host supply. A normal micro-B data cable therefore keeps gadget serial and
+RNDIS active. An OTG plug grounds ID, switches the same controller to xHCI host
+mode, and only then enables adapter power. Peripheral mode is the explicit
+startup default while the GPIO connector driver samples those inputs.
+
+The kernel includes the common RTL8150/RTL8152, ASIX, CDC Ethernet/NCM,
+LAN78xx, SMSC and related USB Ethernet drivers built in (not as external
+modules, because Athena's system image does not carry those `.ko` files). Network
+selection remains userspace policy: Wi-Fi must stay available until an
+enumerated adapter has obtained DHCP and a default route. Removing the OTG
+adapter returns the controller to device mode; the normal cable can then expose
+serial/RNDIS again. This does not make any particular adapter qualified—VBUS,
+enumeration, DHCP, traffic, unplug, reboot, and recovery still require physical
+hardware tests.
+
 New files, copied into the tree:
 
 - `dts/mt8183-amazon-athena.dts`: the board device tree. GPIO, regulator and bus details carry

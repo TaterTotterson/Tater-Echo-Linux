@@ -199,6 +199,22 @@
 	};
 
 	/*
+	 * Stock DRVVBUS is GPIO150, high while the external micro-USB port
+	 * supplies a host adapter. Keep it off through boot and let the standard
+	 * GPIO USB connector enable it only after the ID pin selects host mode.
+	 * Athena itself is powered by its separate DC input.
+	 */
+	usb_otg_vbus: regulator-usb-otg-vbus {
+		compatible = "regulator-fixed";
+		regulator-name = "usb_otg_vbus";
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
+		gpio = <&pio 150 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+		vin-supply = <&reg_vsys>;
+	};
+
+	/*
 	 * Stage 0: buttons. From stock gpio-keys + Amazon's gpio-privacy
 	 * node (no mainline driver for gpio-privacy, so its inputs go here).
 	 */
@@ -688,16 +704,17 @@
 /* ======================= Stage 2: USB ======================= */
 
 /*
- * Gadget mode first. Stock otg_iddig: IDDIG on GPIO41 (mode IDDIG),
- * DRVVBUS on GPIO150 (plain GPIO), VBUS detect on GPIO165 (active high,
- * "vbusd"). Stock also carries MT6370/RT5081 Type-C PD config that does
- * not appear to be wired on athena (TODO, see notes).
- * For OTG later: dr_mode = "otg", usb-role-switch, and a
- * "gpio-usb-b-connector" child with id-gpios = <&pio 41 ...> and
- * vbus-gpios = <&pio 165 ...>.
+ * Stock otg_iddig is GPIO41, DRVVBUS is GPIO150, and VBUS detect ("vbusd")
+ * is GPIO165, active high. The standard GPIO USB connector keeps a normal
+ * micro-B cable in device/serial mode, selects host only when an OTG plug
+ * grounds ID, and enables the separately modelled VBUS supply only in host
+ * mode. Peripheral is the explicit fail-safe default until the GPIO signals
+ * have been sampled.
  */
 &ssusb {
-	dr_mode = "peripheral";
+	dr_mode = "otg";
+	usb-role-switch;
+	role-switch-default-mode = "peripheral";
 	maximum-speed = "high-speed";	/* TODO: is SuperSpeed wired at all? */
 	/* No U3 port in use: without this mtu3 waits for U3 clocks ("clks of
 	 * sts1 are not stable!", -110) and the gadget never binds (UART 2026-10-15) */
@@ -709,10 +726,19 @@
 	pinctrl-names = "default";
 	pinctrl-0 = <&usb_pins>;
 	status = "okay";
+
+	connector {
+		compatible = "gpio-usb-b-connector", "usb-b-connector";
+		type = "micro";
+		self-powered;
+		id-gpios = <&pio 41 GPIO_ACTIVE_HIGH>;
+		vbus-gpios = <&pio 165 GPIO_ACTIVE_HIGH>;
+		vbus-supply = <&usb_otg_vbus>;
+	};
 };
 
 &usb_host {
-	status = "disabled";
+	status = "okay";
 };
 
 &u2port0 {
@@ -1188,14 +1214,20 @@
 		};
 	};
 
-	/* stage 2: USB ID pin (stock iddig_init: mode IDDIG, pull-up) */
+	/* stage 2: USB ID, host VBUS drive, and device VBUS-detect pins */
 	usb_pins: usb-pins {
 		pins-iddig {
-			pinmux = <PINMUX_GPIO41__FUNC_IDDIG>;
+			pinmux = <PINMUX_GPIO41__FUNC_GPIO41>;
 			input-enable;
-			/* GPIO41 is a PUPD/R1R0 pin: plain bias-pull-up gives "Invalid pull
-			 * argument" and mtu3 never binds (UART 2026-10-15) */
+			/* GPIO41 is a PUPD/R1R0 pin; high is normal device mode and an
+			 * OTG plug grounds it to request host mode. */
 			bias-pull-up = <MTK_PUPD_SET_R1R0_01>;
+		};
+
+		pins-vbus-drive {
+			pinmux = <PINMUX_GPIO150__FUNC_GPIO150>;
+			bias-disable;
+			output-low;
 		};
 
 		pins-vbus-detect {
