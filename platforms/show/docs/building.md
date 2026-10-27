@@ -204,9 +204,9 @@ Every image carries a small ffmpeg for the video player and live cameras. It is 
 `deploy-rootfs.sh` stops when it is missing.
 
 - [tools/linux/build-ffmpeg.sh](../tools/linux/build-ffmpeg.sh) builds `bin/techo5-ffmpeg-arm`, the
-  32-bit one every image carries (Linux or WSL).
+  32-bit one every image carries (Linux or WSL), including H.265 and SRTP for live cameras.
 - [tools/linux/build-ffmpeg-arm64.sh](../tools/linux/build-ffmpeg-arm64.sh) builds
-  `bin/techo5-ffmpeg-arm64`: the same ffmpeg for aarch64, fully static, with H.265, VP8 and VP9 added. It
+  `bin/techo5-ffmpeg-arm64`: the same ffmpeg for aarch64, fully static, with VP8 and VP9 added. It
   is a cross build in WSL or on x86_64 Linux (under a minute once its build root is made). Only the
   Show 8 2nd gen (athena) and Skylight images carry it, beside the 32-bit one, and the daemon runs it
   on their 64-bit kernels. `deploy-rootfs.sh` stops when it is missing from either image.

@@ -11,12 +11,11 @@ picture fills the width, and the edge of the glass takes its corners.
 - **Addresses:** `http://` and `https://` only. MP4, MKV, MPEG-TS and HLS (`.m3u8`) streams.
 - **Picture:** H.264 (and old MPEG-4). 720p or less plays best. 1080p plays on a Show 5 but uses
   almost all of it. AV1 doesn't play anywhere.
-- **H.265 (HEVC), VP8 and VP9:** on the Echo Show 8 2nd gen and the Skylight Calendar only, on
-  TECHO5's own kernel (an Echo Show 8 2nd gen still on Amazon's kernel plays what the other Shows do). Each plays only
-  as fast as the device decodes it in time; a faster one is refused rather than played behind. The
-  Show 8 2nd gen plays H.265 up to 1080p at 30 frames a second, and VP8 and VP9 up to 1080p at 120. The
-  Skylight plays H.265, VP8 and VP9 up to 1080p at 30. The other Shows and the
-  Spot don't play them.
+- **H.265 (HEVC):** on every screened image, including low-resolution H.265/SRTP camera streams. Each
+  device plays only as fast as its cores decode in time; a faster one is refused rather than played behind.
+- **VP8 and VP9:** on the Echo Show 8 2nd gen and the Skylight Calendar only, on TECHO5's own kernel.
+  The Show 8 2nd gen plays H.265 up to 1080p at 30 frames a second, and VP8 and VP9 up to 1080p at 120. The
+  Skylight plays H.265, VP8 and VP9 up to 1080p at 30.
 - **Sound:** AAC, MP3, Opus, AC-3 and E-AC-3 (Dolby Digital), surround mixed down to stereo. A
   video whose sound is something else (DTS, TrueHD) plays without it.
 - **Loudness:** films are mixed much quieter than music, so the Show evens a video's sound out to

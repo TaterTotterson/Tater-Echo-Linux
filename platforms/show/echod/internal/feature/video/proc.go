@@ -41,7 +41,7 @@ func decoderPath() string {
 
 // imageDecoder is the image's decoder, chosen once. The 64-bit build is static (it needs nothing of the
 // 32-bit userspace) but runs only on a 64-bit kernel: an athena still on Amazon's 32-bit kernel has the
-// file and cannot run it, so it keeps the 32-bit one, without H.265, VP8 and VP9.
+// file and cannot run it, so it keeps the 32-bit one, without VP8 and VP9.
 var imageDecoder = sync.OnceValue(func() string {
 	return pickDecoder(kernelMachine(), fileExists(decoder64))
 })
@@ -68,8 +68,8 @@ func fileExists(path string) bool {
 	return err == nil
 }
 
-// The image's ffmpeg decodes H.265 when it carries the decoder (build-ffmpeg-arm64.sh builds it in, with
-// its parser): a message only the decoder has, as CanRTSP looks for RTSP. Looked for once.
+// The image's ffmpeg decodes H.265 when it carries the decoder (build-ffmpeg.sh builds it in, with its
+// parser): a message only the decoder has, as CanRTSP looks for RTSP. Looked for once.
 func init() {
 	decodesHEVC = sync.OnceValue(func() bool {
 		ok, err := fileHas(decoderPath(), hevcDecoder)

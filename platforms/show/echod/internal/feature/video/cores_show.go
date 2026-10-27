@@ -4,10 +4,9 @@ package video
 
 import "github.com/HuskerMinion/techo5/echod/internal/layout"
 
-// What the boards with H.265, VP8 and VP9 in their ffmpeg (build-ffmpeg-arm64.sh) decode in time on
-// their cores, through the player's own command (scaled, turned, made the panel's pixels); coresMost
-// holds every other board to 1080p30. The images give that build to athena and the Skylight, on their
-// 64-bit kernels.
+// What the boards with H.265, VP8 and VP9 in their ffmpeg decode in time on their cores, through the
+// player's own command (scaled, turned, made the panel's pixels); coresMost holds every other board to
+// 1080p30. H.265 is in the shared build; athena and Skylight also get the aarch64 VP8/VP9 build.
 //
 // The 2nd gen Show 5's four Cortex-A53s at 1.3 GHz: VP9 1080p30 at 40 frames a second flat out and
 // 200 s of it at real time in 199.6 s at about 2 cores, 720p60 at 83; 1080p60 fell behind, 20 s of it in

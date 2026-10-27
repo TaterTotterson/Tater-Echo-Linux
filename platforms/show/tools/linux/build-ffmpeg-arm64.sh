@@ -2,8 +2,9 @@
 # build-ffmpeg-arm64.sh — the video player's ffmpeg (build-ffmpeg.sh) for the boards with a 64-bit kernel:
 # the same version, configure flags and RTSP patch, built for aarch64 and linked fully static, with more
 # in it:
-#   - the H.265, VP8 and VP9 decoders and their parsers. Only the Echo Show 8 2nd gen (athena) and the
-#     Skylight Calendar get this build, and even there not at every size: echod finds them in the binary
+#   - the VP8 and VP9 decoders and their parsers. Only the Echo Show 8 2nd gen (athena) and the
+#     Skylight Calendar get this build. H.265 is shared with the 32-bit decoder so live cameras work on
+#     every Show; echod finds these extra codecs in the binary
 #     (feature/video, proc.go) and holds each board to what its cores decode in time (cores_show.go).
 #     Every other device keeps build-ffmpeg.sh's set.
 #   - the Matroska muxer and the extract_extradata filter, which carry a stream's H.264 untouched to a
@@ -48,7 +49,7 @@ SHA256=$(sed -n 's/^SHA256=//p' "$B")
 FLAGS=$(sed -n '/^FLAGS="/,/"$/p' "$B" | tr -d '\\\n\t"' | sed -e 's/^FLAGS=//' \
 	-e 's/--arch=arm --cpu=cortex-a53 --enable-neon/--arch=aarch64 --cpu=cortex-a53/')
 # ...and the 64-bit build's own (above); configure adds each list to the ones before it.
-FLAGS="$FLAGS --enable-decoder=hevc,vp8,vp9 --enable-parser=hevc,vp8,vp9 --enable-muxer=matroska --enable-bsf=extract_extradata"
+FLAGS="$FLAGS --enable-decoder=vp8,vp9 --enable-parser=vp8,vp9 --enable-muxer=matroska --enable-bsf=extract_extradata"
 case $FLAGS in *--arch=aarch64*) ;; *) echo "build-ffmpeg.sh's flags are not the ones expected" >&2; exit 1;; esac
 # The cross build: clang for aarch64 against /sysroot, everything static.
 FLAGS="$FLAGS --enable-cross-compile --target-os=linux --sysroot=/sysroot --cc=aarch64-cc --ld=aarch64-cc --host-cc=gcc \
