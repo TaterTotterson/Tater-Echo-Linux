@@ -9,6 +9,7 @@
 //
 //	fbprobe                 # paint the test image and pan it onto the panel
 //	fbprobe -fill 1c1511    # solid color only
+//	fbprobe -fill 000000 -logo tater.png -leave # early boot mark
 //	fbprobe -info           # print the framebuffer geometry and exit
 //	fbprobe -dump shot.png  # write what the panel is showing now to a PNG
 //	fbprobe -title RESCUE -lines "first line|second line" -hold 1000h
@@ -125,7 +126,7 @@ func background(fill string) color.RGBA {
 // that much. Kept apart from the framebuffer so -png can render exactly what the panel would show
 // on a machine with no panel: wording that nobody can see before it is on a device is wording that
 // gets shipped wrong.
-func compose(w, h int, bg color.RGBA, fill, title, lines string) (*image.RGBA, image.Rectangle, int, int) {
+func compose(w, h int, bg color.RGBA, fill, title, lines string, logo image.Image) (*image.RGBA, image.Rectangle, int, int) {
 	img := image.NewRGBA(image.Rect(0, 0, w, h))
 	draw.Draw(img, img.Bounds(), image.NewUniform(bg), image.Point{}, draw.Src)
 
@@ -135,6 +136,22 @@ func compose(w, h int, bg color.RGBA, fill, title, lines string) (*image.RGBA, i
 	clockY, clockScale := 300, 6
 
 	switch {
+	case logo != nil:
+		// Boot hands the same small wordmark from LK to Linux. Keep it at its native size so the
+		// handoff does not jump on the Shows, and only shrink it for an unexpectedly small panel.
+		bounds := logo.Bounds()
+		lw, lh := bounds.Dx(), bounds.Dy()
+		if lw > w || lh > h {
+			scale := min(float64(w)/float64(lw), float64(h)/float64(lh))
+			lw, lh = max(1, int(float64(lw)*scale)), max(1, int(float64(lh)*scale))
+			scaled := image.NewRGBA(image.Rect(0, 0, lw, lh))
+			xdraw.CatmullRom.Scale(scaled, scaled.Bounds(), logo, bounds, draw.Src, nil)
+			logo = scaled
+			bounds = logo.Bounds()
+		}
+		at := image.Pt((w-lw)/2, (h-lh)/2)
+		draw.Draw(img, image.Rectangle{Min: at, Max: at.Add(image.Pt(lw, lh))}, logo, bounds.Min, draw.Over)
+
 	case fill != "":
 		// Nothing but the color: the caller wants the panel proved, not described.
 
@@ -182,6 +199,8 @@ func main() {
 	pw := flag.Int("png-w", 960, "canvas width for -png (960 Show 5, 480 Spot, 1280 Show 8)")
 	ph := flag.Int("png-h", 480, "canvas height for -png")
 	fill := flag.String("fill", "", "fill with this rrggbb color only")
+	logoPath := flag.String("logo", "", "draw this PNG centered over the background")
+	leave := flag.Bool("leave", false, "leave the painted frame on exit (early boot only)")
 	hold := flag.Duration("hold", 0, "keep repainting for this long (0 = paint once and exit)")
 	title := flag.String("title", "", "a heading to draw instead of the test image")
 	lines := flag.String("lines", "", "lines under the heading, separated by | (needs -title)")
@@ -198,6 +217,19 @@ func main() {
 	benchEach := flag.Bool("bench-each", false, "print every -bench frame")
 	fill2 := flag.String("fill2", "ffffff", "the other color -bench alternates with")
 	flag.Parse()
+
+	var logo image.Image
+	if *logoPath != "" {
+		f, err := os.Open(*logoPath)
+		if err != nil {
+			fatal("open logo %s: %v", *logoPath, err)
+		}
+		logo, err = pngenc.Decode(f)
+		f.Close()
+		if err != nil {
+			fatal("decode logo %s: %v", *logoPath, err)
+		}
+	}
 
 	// -watch reads and changes nothing, so it runs while the daemon is still working: what the
 	// daemon presents while it is working is the question, and a frozen daemon answers another one.
@@ -216,7 +248,7 @@ func main() {
 	// Before the device is opened, so this works on a workstation: it is how the rescue wording is
 	// read by somebody who is not standing in front of a unit.
 	if *png != "" {
-		img, _, _, _ := compose(*pw, *ph, background(*fill), *fill, *title, *lines)
+		img, _, _, _ := compose(*pw, *ph, background(*fill), *fill, *title, *lines, logo)
 		out, err := os.Create(*png)
 		if err != nil {
 			fatal("create %s: %v", *png, err)
@@ -321,14 +353,16 @@ func main() {
 	w, h := int(v.Yres), int(v.Xres) // landscape canvas
 	bg := background(*fill)
 
-	img, clockAt, clockY, clockScale := compose(w, h, bg, *fill, *title, *lines)
+	img, clockAt, clockY, clockScale := compose(w, h, bg, *fill, *title, *lines, logo)
 
 	// What this paints must be put back when it finishes. The daemon skips rows it believes it has
 	// already drawn (screen.go's shadow), so a page left as another program painted it stays that way —
 	// static text and all — until something on it moves, which for static text is never. This is also
 	// what the rescue environment does not need: there is no daemon running to disagree with.
 	kept := keepPanel(mem, int(fx.LineLength), int(v.Yres), pageCount(v), v)
-	defer kept.restore(f, mem, v)
+	if !*leave {
+		defer kept.restore(f, mem, v)
+	}
 
 	paint := func() {
 		blit(mem, img, int(fx.LineLength), int(v.Xres), int(v.Yres), v)
@@ -343,7 +377,7 @@ func main() {
 		deadline := time.Now().Add(*hold)
 		for time.Now().Before(deadline) {
 			time.Sleep(time.Second)
-			if *fill == "" {
+			if *fill == "" && logo == nil {
 				draw.Draw(img, clockAt, image.NewUniform(bg), image.Point{}, draw.Src)
 				text(img, time.Now().Format("15:04:05"), 40, clockY, clockScale, color.RGBA{0xe8, 0xdc, 0xc8, 0xff})
 			}

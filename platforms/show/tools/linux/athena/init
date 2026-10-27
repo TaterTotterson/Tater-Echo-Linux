@@ -33,6 +33,7 @@ WIFI_PRE=/vendor/lib/modules/wlan_mt76x3_sdio_prealloc.ko
 WIFI_MODULE=/vendor/lib/modules/wlan_mt76x3_sdio.ko
 export T5_PRODUCT="Echo Show 8 2nd gen Linux"
 export USB_RNDIS=172.16.42.1
+TATER_BOOT_LOGO=/usr/local/share/tater-boot.png
 # Fire OS's saved networks, for t5_wifi_conf: its userdata is mounted whole at /userdata here.
 export WIFI_STORES=/userdata/misc/wifi/WifiConfigStore.xml
 
@@ -81,6 +82,20 @@ $BB mount -t tmpfs tmpfs /run
 $BB mount -t tmpfs tmpfs /tmp
 echo 7 4 1 7 > /proc/sys/kernel/printk
 crumb "dev populated: $($BB ls /dev | $BB wc -l) nodes, misc=$([ -b $MISC ] && echo yes || echo no)"
+
+# Athena's Amazon wordmark lives in lk_real, one of saiyaku's protected unlock partitions. Never
+# rewrite it. Paint the same-size Tater mark over LK's preserved framebuffer as soon as Linux owns
+# it instead. This is before the daemon owns a framebuffer shadow, so fbprobe's early-boot-only
+# -leave mode intentionally leaves the Tater frame for the DRM driver and daemon to inherit.
+start_boot_splash() {
+	[ -x /usr/local/bin/fbprobe ] && [ -s "$TATER_BOOT_LOGO" ] || return 0
+	$BB mkdir -p /dev/graphics
+	[ -e /dev/fb0 ] && $BB ln -sf /dev/fb0 /dev/graphics/fb0
+	[ -e /dev/graphics/fb0 ] || return 0
+	/usr/local/bin/fbprobe -fill 000000 -logo "$TATER_BOOT_LOGO" -leave \
+		> /tmp/tater-boot-splash.log 2>&1
+}
+start_boot_splash
 
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 . /lib/techo5-lib.sh

@@ -48,6 +48,18 @@ Known limits:
   (the `system` partition alone is 3 GB) before it writes anything. **Keep that backup.** It is your
   way back to Fire OS, and the speaker tuning comes from it.
 
+### The Tater boot mark
+
+Athena's first Amazon wordmark is compiled into `lk_real`, which is part of the saiyaku unlock
+chain. The Tater image never patches that partition: a bad `lk` write can prevent both normal boot
+and TWRP. A brief Amazon frame can therefore remain immediately after power-on.
+
+The Tater system store carries a static framebuffer renderer and the same 315x170 monochrome mark
+used on the other Shows. As soon as Linux owns the framebuffer, `/init` paints the Tater mark over
+the preserved LK frame and leaves it there until the normal animated splash takes over. This path
+was verified on a physical Athena on 2026-10-26. It changes only the writable `system` image; `tee1`,
+`tee2`, `lk`, `lk2`, the preloader, and TWRP remain byte-for-byte untouched.
+
 ## Install
 
 ```

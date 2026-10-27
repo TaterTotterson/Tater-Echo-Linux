@@ -50,6 +50,9 @@ Current Tater platform work:
 
 - [Biscuit micro-USB Ethernet](docs/biscuit-usb-ethernet.md)
 - [USB Ethernet readiness by satellite](docs/usb-ethernet-readiness.md)
+- Athena's hardware-tested early-Linux Tater splash, which replaces the
+  protected bootloader frame without writing saiyaku's `tee1`, `lk`, or
+  preloader partitions.
 - [Dot kernels v1.0.0](https://github.com/TaterTotterson/Tater-Echo-Linux/releases/tag/dot-kernel-v1.0.0)
   for Biscuit and Radar, built from the immutable `platform/dot` source ref.
 - [Satellite baseline provenance](baselines/satellite-baselines-v1.json) for

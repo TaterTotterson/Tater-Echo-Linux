@@ -507,6 +507,9 @@ system on it from TWRP, backing up every partition first. Only one of the screen
 supported on that kernel so far, and the installer checks yours. Every step:
 **[docs/install-athena.md](docs/install-athena.md)**. The story and the hardware:
 [TECHO5 ATHENA](https://github.com/HuskerMinion/techo5-athena).
+Athena's Tater build never rewrites its protected LK wordmark. Instead, `/init` paints the
+monochrome Tater mark into LK's preserved framebuffer at the first safe Linux frame, before the
+normal display service takes over.
 
 **Skylight Calendar 15 (150-CAL)** isn't an Echo and needs no unlock. On its stock firmware
 (D156.V1.3) adb is open, and `tools/install-skylight.py` backs up the whole eMMC, then puts TECHO5's

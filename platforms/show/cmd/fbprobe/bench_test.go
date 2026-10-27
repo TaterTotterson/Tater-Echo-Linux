@@ -4,11 +4,33 @@ package main
 
 import (
 	"encoding/binary"
+	"image"
 	"image/color"
 	"strings"
 	"testing"
 	"time"
 )
+
+func TestComposeCentersBootLogo(t *testing.T) {
+	mark := image.NewRGBA(image.Rect(0, 0, 2, 2))
+	for y := range 2 {
+		for x := range 2 {
+			mark.SetRGBA(x, y, color.RGBA{0xff, 0xff, 0xff, 0xff})
+		}
+	}
+	img, _, _, _ := compose(10, 6, color.RGBA{0, 0, 0, 0xff}, "000000", "", "", mark)
+	for y := range 6 {
+		for x := range 10 {
+			want := color.RGBA{0, 0, 0, 0xff}
+			if x >= 4 && x < 6 && y >= 2 && y < 4 {
+				want = color.RGBA{0xff, 0xff, 0xff, 0xff}
+			}
+			if got := img.RGBAAt(x, y); got != want {
+				t.Fatalf("pixel (%d,%d) is %#v, want %#v", x, y, got, want)
+			}
+		}
+	}
+}
 
 // The fill works by doubling what has been written so far, and a doubling that stops early leaves
 // part of the page holding stale pixels. Nothing would fail: the bench would time a smaller write

@@ -3,7 +3,7 @@
 # root is also the boot environment, because Amazon's kernel boots straight from it (no initramfs).
 #
 #   mkstore.sh -r <rootfs.tar.gz> -k <authorized_keys>|none -o <system.img> [-i <inputs>] [-w <workdir>]
-#              [-f <fbprobe>] [-s <slot a state>] [-L <label>]
+#              [-f <fbprobe>] [-l <boot logo PNG>] [-s <slot a state>] [-L <label>]
 #
 # Linux (WSL) with qemu-user-static + binfmt for arm, Alpine's static apk at ~/apk/apk.static, a user
 # namespace (uidmap) and e2fsprogs; network for apk. What it makes:
@@ -33,7 +33,7 @@ set -euo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
 LINUX=$(cd "$HERE/.." && pwd)
 INPUTS=$(cd "$HERE/../../.." && pwd)/inputs
-ROOTFS=; KEYS=; OUT=; WORK=$HOME/techo5-athena-store; FBPROBE=; STATE=good; LABEL=techo5-store
+ROOTFS=; KEYS=; OUT=; WORK=$HOME/techo5-athena-store; FBPROBE=; LOGO=; STATE=good; LABEL=techo5-store
 APK=${APK:-$HOME/apk/apk.static}
 INNER=
 while [ $# -gt 0 ]; do
@@ -44,6 +44,7 @@ while [ $# -gt 0 ]; do
 	-i) INPUTS=$2; shift 2;;
 	-w) WORK=$2; shift 2;;
 	-f) FBPROBE=$2; shift 2;;
+	-l) LOGO=$2; shift 2;;
 	-s) STATE=$2; shift 2;;
 	-L) LABEL=$2; shift 2;;
 	--inner) INNER=1; shift;;
@@ -51,7 +52,7 @@ while [ $# -gt 0 ]; do
 	esac
 done
 [ -n "$ROOTFS" ] && [ -n "$KEYS" ] && [ -n "$OUT" ] || {
-	echo "usage: mkstore.sh -r rootfs.tar.gz -k authorized_keys|none -o system.img [-i inputs] [-w workdir] [-f fbprobe] [-s 'good'|'trial 3']" >&2; exit 1; }
+	echo "usage: mkstore.sh -r rootfs.tar.gz -k authorized_keys|none -o system.img [-i inputs] [-w workdir] [-f fbprobe] [-l boot-logo.png] [-s 'good'|'trial 3']" >&2; exit 1; }
 case "$STATE" in good|"trial "[0-9]) ;; *) echo "mkstore: slot state must be good or 'trial N'" >&2; exit 1;; esac
 say() { echo "mkstore: $*"; }
 
@@ -67,7 +68,7 @@ if [ -z "$INNER" ]; then
 	map=--map-auto; command -v newuidmap >/dev/null || map=
 	# Files owned by root (and by the slot's service users) without sudo.
 	exec unshare -Ur $map bash "$0" --inner -r "$ROOTFS" -k "$KEYS" -o "$OUT" -i "$INPUTS" -w "$WORK" \
-		${FBPROBE:+-f "$FBPROBE"} -s "$STATE" -L "$LABEL"
+		${FBPROBE:+-f "$FBPROBE"} ${LOGO:+-l "$LOGO"} -s "$STATE" -L "$LABEL"
 fi
 
 R=$WORK/root
@@ -92,11 +93,15 @@ say "boot and rescue files"
 install -m 755 "$INPUTS/busybox.static" "$R/bin/busybox.static"
 lf() { sed 's/\r$//' "$1" > "$2"; chmod "$3" "$2"; }
 lf "$HERE/init" "$R/init" 755
-install -d "$R/usr/local/sbin" "$R/usr/local/bin" "$R/etc/profile.d"
+install -d "$R/usr/local/sbin" "$R/usr/local/bin" "$R/usr/local/share" "$R/etc/profile.d"
 lf "$LINUX/slotctl" "$R/usr/local/sbin/slotctl" 755
 lf "$LINUX/techo5-lib.sh" "$R/lib/techo5-lib.sh" 644
 lf "$HERE/rescue-profile.sh" "$R/etc/profile.d/techo5-rescue.sh" 644
 [ -n "$FBPROBE" ] && install -m 755 "$FBPROBE" "$R/usr/local/bin/fbprobe"
+if [ -n "$LOGO" ]; then
+	[ -n "$FBPROBE" ] || { echo "mkstore: a boot logo needs fbprobe" >&2; exit 1; }
+	install -m 644 "$LOGO" "$R/usr/local/share/tater-boot.png"
+fi
 echo techo5-rescue > "$R/etc/hostname"
 # Read-only root: what the rescue writes goes to /run.
 rm -rf "$R/etc/dropbear"
