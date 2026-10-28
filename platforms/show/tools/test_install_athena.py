@@ -591,22 +591,62 @@ class SimulatedTWRP(unittest.TestCase):
         self.assertIsNone(err, out)
         self.assertIn('--force-panel', out)
 
-    def test_techo5_boot_without_stock_backup(self):
+    def test_techo5_boot_reuses_valid_installed_tuning(self):
         filled = inst.fill_slot(techo5_boot(), inst.mainline_table(TABLE_B))
         u = self.unit(boot=filled)
         out, err = self.install(u, *self.mainline_args())
+        self.assertIsNone(err, out)
+        self.assertEqual(u.writes(), [21, 20])
+        with open(self.boot, 'rb') as f:
+            installed = u.part(20)[:len(f.read())]
+        self.assertEqual(inst.read_slot(installed), inst.mainline_table(TABLE_B))
+        self.assertIn('checksum-verified tuning', out)
+        # The backup was made with TECHO5 on boot: said plainly, and no restore lines that would not
+        # bring Fire OS back.
+        self.assertIn('NOT a Fire OS backup', out)
+        self.assertNotIn('adb exec-in', out)
+
+    def test_techo5_boot_without_valid_tuning_stops_before_writing(self):
+        for boot in (techo5_boot(), self.corrupt_slot(inst.fill_slot(techo5_boot(), inst.mainline_table(TABLE_B)))):
+            u = self.unit(boot=boot)
+            out, err = self.install(u, *self.mainline_args())
+            self.assertIn('--stock-boot', err or '')
+            self.assertEqual(u.writes(), [])
+            shutil.rmtree(os.path.join(self.tmp, 'unit'))
+
+    def test_techo5_boot_with_unknown_tuning_stops_before_writing(self):
+        unknown = b'\x42\x24' * 300
+        u = self.unit(boot=inst.fill_slot(techo5_boot(), unknown))
+        out, err = self.install(u, *self.mainline_args())
+        self.assertIn('does not know', err or '')
         self.assertIn('--stock-boot', err or '')
         self.assertEqual(u.writes(), [])
+
+    def test_techo5_tuning_disagrees_with_live_config(self):
+        filled = inst.fill_slot(techo5_boot(), inst.mainline_table(TABLE_B))
+        u = self.unit(boot=filled, live_cfg=0)
+        out, err = self.install(u, *self.mainline_args())
+        self.assertIn('not guessing', err or '')
+        self.assertEqual(u.writes(), [])
+
+    @staticmethod
+    def corrupt_slot(boot):
+        damaged = bytearray(boot)
+        at = damaged.find(inst.SLOT_MAGIC)
+        damaged[at + inst.SLOT_HEAD] ^= 1
+        damaged[576:608] = inst.BootImage(bytes(damaged)).computed_id()
+        return bytes(damaged)
+
+    def test_stock_boot_override_still_works(self):
+        filled = inst.fill_slot(techo5_boot(), inst.mainline_table(TABLE_B))
+        u = self.unit(boot=filled)
         stock = os.path.join(self.tmp, 'stock-boot.img')
         with open(stock, 'wb') as f:
             f.write(stock_boot())
         out, err = self.install(u, '--stock-boot', stock, *self.mainline_args())
         self.assertIsNone(err, out)
         self.assertEqual(u.writes(), [21, 20])
-        # The backup was made with TECHO5 on boot: said plainly, and no restore lines that would not
-        # bring Fire OS back.
         self.assertIn('NOT a Fire OS backup', out)
-        self.assertNotIn('adb exec-in', out)
 
     def test_unknown_table_stops_before_writing(self):
         inst.KNOWN_AMP_TABLES.clear()

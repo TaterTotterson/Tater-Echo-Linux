@@ -13,10 +13,10 @@ one folder on userdata (userdata/techo5); nothing else of Fire OS's data is touc
     python3 tools/install-athena.py --kernel amazon --image system.img
 
 The kernel's speaker amp needs Amazon's tuning for it (a TI TAS5805M register sequence). TECHO5
-doesn't ship it: Amazon's kernel on the unit's own `boot` partition carries it. The installer reads it
-out of the backup it makes, checks it against the known tunings by sha256, and puts it into a slot
-reserved for it in TECHO5's boot image before it writes that image. The data stays on this computer
-and on the unit.
+doesn't ship it: Amazon's kernel on the unit's own `boot` partition carries it. The first install reads
+it out of the backup it makes, checks it against the known tunings by sha256, and puts it into a slot
+reserved for it in TECHO5's boot image. A later install can reuse that checksum-verified slot after
+checking the boot image and tuning again. The data stays on this computer and on the unit.
 
 `--kernel amazon` is the older path: Amazon's 32-bit kernel stays on `boot`, and only `system` is
 written. The same store image works under both kernels.
@@ -34,8 +34,9 @@ recovery). Each step is checked before the next:
                backup is already there)
   3. images    the store image, and for the mainline kernel the boot image: yours (--image, --boot) or
                the release's, checked against its signed manifest
-  4. amp       mainline only: the unit's speaker tuning, from Fire OS's boot in the backup, into the
-               boot image's tuning slot; the boot image's id recomputed
+  4. amp       mainline only: the unit's speaker tuning, from Fire OS's boot in the backup or the
+               validated slot in the installed TECHO5 boot, into the new boot image's tuning slot;
+               the boot image's id recomputed
   5. write     asked once; only then are system and boot unmounted if TWRP had them mounted, and
                written: system, then boot (mainline only), each read back from the flash and compared
                by sha256; the store on system is then grown to fill its partition, from TWRP (Amazon's
@@ -563,6 +564,36 @@ def stock_amp_tuning(boot_data, live_compatible=None, what="Fire OS's boot image
          % (want, cfg, source, ', '.join(h[:16] for h in found) or 'none'))
 
 
+def installed_amp_tuning(boot_data, what="the installed TECHO5 boot image"):
+    """(table bytes, letter, description, speaker-config, source) from a filled TECHO5 boot slot,
+    after checking the boot image, slot checksum and tuning against the known tables."""
+    if not is_techo5_boot(boot_data):
+        fail("%s is not TECHO5's boot image" % what)
+    img = BootImage(boot_data, what)
+    if img.stored_id() != img.computed_id():
+        fail('%s: its header id does not match its contents; it is damaged. Pass Fire OS\'s boot with\n'
+             '   --stock-boot (the p20-boot.img of the backup made before TECHO5 was first installed).'
+             % what)
+    at = slot_offset(boot_data, what)
+    if not (img.kernel_at <= at and at + SLOT_SIZE <= img.second_at + img.second_size):
+        fail('the amp tuning slot in %s is not inside its kernel, ramdisk or second stage' % what)
+    table = read_slot(boot_data)
+    if table is None:
+        fail('%s has no valid speaker tuning in its slot. Pass Fire OS\'s boot with --stock-boot\n'
+             '   (the p20-boot.img of the backup made before TECHO5 was first installed).' % what)
+    digest = hashlib.sha256(table).hexdigest()
+    known = KNOWN_AMP_TABLES.get(digest)
+    if not known:
+        fail('%s has speaker tuning sha256 %s, which this installer does not know. Pass Fire OS\'s boot\n'
+             '   with --stock-boot so the tuning and speaker configuration can be checked again.'
+             % (what, digest))
+    letter, desc = known
+    configs = [cfg for cfg, table_letter in SPEAKER_CONFIG_TABLE.items() if table_letter == letter]
+    if len(configs) != 1:
+        fail('%s has known amp table %s, but it does not map to exactly one speaker-config' % (what, letter))
+    return table, letter, desc, configs[0], "the installed boot image's checksum-verified tuning slot"
+
+
 def show_amp_tables(path):
     """--show-amp-tables: what a Fire OS boot image holds, for adding a firmware version."""
     with open(path, 'rb') as f:
@@ -1017,8 +1048,8 @@ def main(argv=None):
     ap.add_argument('--boot', help='with --image: a TECHO5 mainline boot image you built (its amp slot empty)')
     ap.add_argument('--release', default='latest', help="without --image: a release tag, or latest, whose "
                     "signed manifest names %s and %s" % (image_name('<version>'), boot_name('<version>')))
-    ap.add_argument('--stock-boot', help="Fire OS's boot image, when the backup's boot is already TECHO5's "
-                    '(the amp tuning is read from it)')
+    ap.add_argument('--stock-boot', help="Fire OS's boot image, when the installed TECHO5 boot has no valid "
+                    'known amp tuning or when a Fire OS restore backup is needed')
     ap.add_argument('--force-panel', action='store_true',
                     help='install the mainline kernel on a screen it is not tested on, or one it does not know')
     ap.add_argument('--name', help='the name Home Assistant shows, e.g. Kitchen; a unit that has one keeps it')
@@ -1179,21 +1210,24 @@ def main(argv=None):
 
         # -------------------------------------------------------------------------------- 4. amp
         step('the speaker tuning')
+        live = compat.split()
         if a.stock_boot:
             stock_path, what = os.path.abspath(a.stock_boot), 'the boot image in --stock-boot'
-        elif os.path.exists(saved_boot):
-            stock_path, what = saved_boot, "the backup's boot (%s)" % saved_boot
+            table, letter, desc, cfg, source = stock_amp_tuning(read_file(stock_path), live, what)
+        elif os.path.exists(saved_boot) and not backup_not_fire_os:
+            what = "the backup's boot (%s)" % saved_boot
+            table, letter, desc, cfg, source = stock_amp_tuning(read_file(saved_boot), live, what)
+        elif boot_is_techo5:
+            what = "TECHO5's boot on the unit"
+            table, letter, desc, cfg, source = installed_amp_tuning(current_boot, what)
+            note('the original Fire OS boot is unavailable; reusing the known, checksum-verified tuning\n'
+                 "   already installed in TECHO5's boot (this does not make the current backup a Fire OS backup)")
         else:
-            stock_path, what = None, "Fire OS's boot on the unit"
-        stock = read_file(stock_path) if stock_path else current_boot
-        if is_techo5_boot(stock):
-            fail("%s is TECHO5's, not Fire OS's, so it has no speaker tuning to read. Pass Fire OS's boot\n"
-                 '   with --stock-boot (the p20-boot.img of the backup made before TECHO5 was first installed).' % what)
-        live = compat.split()
-        table, letter, desc, cfg, source = stock_amp_tuning(stock, live, what)
+            what = "Fire OS's boot on the unit"
+            table, letter, desc, cfg, source = stock_amp_tuning(current_boot, live, what)
         live_cfg = live_speaker_config(adb)
         if live_cfg and live_cfg != {cfg}:
-            fail('TWRP\'s device tree says speaker-config %s, and Fire OS\'s says %d; not guessing which is right'
+            fail('TWRP\'s device tree says speaker-config %s, and the tuning source says %d; not guessing which is right'
                  % (sorted(live_cfg), cfg))
         note('speaker-config %d (%s): table %s, %s, %d bytes, sha256 %s'
              % (cfg, source, letter, desc, len(table), hashlib.sha256(table).hexdigest()[:16]))

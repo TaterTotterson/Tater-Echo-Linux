@@ -175,7 +175,9 @@ protection. Amazon doesn't ship it as a file; it's compiled into the Fire OS ker
 two (table A and table B) and picks one per unit with `speaker-config` in its device tree. TECHO5
 doesn't redistribute it. The installer gets it from your unit instead:
 
-1. It takes Fire OS's `boot` from the backup (`p20-boot.img`), or from `--stock-boot <file>`.
+1. On the first install, it takes Fire OS's `boot` from the backup (`p20-boot.img`), or from
+   `--stock-boot <file>`. On a reinstall, it can reuse the tuning already stored in TECHO5's boot
+   after verifying the boot header, slot checksum and known tuning hash.
 2. It unpacks Amazon's kernel and reads `speaker-config` from the device tree that matches the unit.
 3. It finds both tables in the kernel by their structure, converts the one the unit uses to the
    format the mainline driver loads (register/value byte pairs, the delays left out), and checks its
@@ -186,8 +188,14 @@ doesn't redistribute it. The installer gets it from your unit instead:
 The tuning stays on your computer (in the backup) and on the unit.
 
 If `boot` already holds TECHO5's kernel and the backup's `p20-boot.img` is TECHO5's too (for
-example, a backup made after an earlier install), the installer stops: pass Fire OS's boot with
-`--stock-boot <file>`.
+example, a backup made after an earlier install), the installer can safely reinstall by copying the
+known, checksum-verified tuning from the current boot into the new boot image. It also checks that
+the tuning's table A/B selection agrees with the live device tree in TWRP. An empty, damaged,
+unknown or mismatched tuning slot stops before anything is written; pass the original Fire OS boot
+with `--stock-boot <file>` in that case.
+
+Reusing the tuning does **not** turn a post-install backup into a Fire OS restore backup. Preserve the
+backup made before the first TECHO5 install if you may want to restore Fire OS later.
 
 ### A Fire OS version the installer doesn't know
 
