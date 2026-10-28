@@ -83,6 +83,9 @@ commit the boot image came from (so `amzn-bcmdhd.ko` still loads), with the runn
 configuration from [docs/dumps](dumps), Bluetooth, built-in RTL8152 Ethernet, and MediaTek's bounded
 `/proc/mchange` host/device switch. The internal Broadcom Wi-Fi adapter stays on the separate USB1
 controller. Its header lists the source and the toolchain (Arm's GCC 8.3, downloaded without root).
+The build applies Tater's tracked fix for Amazon's dormant command-mode IRQ
+prototype and supplies a pinned `.scmversion`, so the output retains the exact
+`4.9.337-g4174e0b4d0e2` release required by Rook's vendor Wi-Fi module.
 From Tater Echo Linux, on Linux or inside WSL's Ubuntu:
 
 ```

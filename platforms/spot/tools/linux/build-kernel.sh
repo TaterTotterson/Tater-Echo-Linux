@@ -28,6 +28,7 @@ KSRC=${KSRC:-$HOME/kernel-rook}
 KCOMMIT=${KCOMMIT:-4174e0b4d0e2}
 KOUT=${KOUT:-$HOME/kout-rook}
 KCONFIG=${KCONFIG:-$HERE/docs/dumps/rook-lineage-kernel-4.9.337.config}
+KPATCH=${KPATCH:-$HERE/patches/0001-fix-mchange-irq-prototype.patch}
 CROSS_COMPILE=${CROSS_COMPILE:-$HOME/toolchain/gcc-arm-8.3-2019.03-x86_64-aarch64-linux-gnu/bin/aarch64-linux-gnu-}
 OUT=
 while [ $# -gt 0 ]; do
@@ -54,6 +55,18 @@ if [ -n "$(git status --porcelain)" ]; then
 	git status --short >&2
 	exit 1
 fi
+# Amazon shipped the command-mode implementation behind a disabled option with
+# a stale IRQ-handler prototype. Apply Tater's minimal build fix while keeping
+# the source revision and resulting module ABI at the pinned Lineage commit.
+[ -f "$KPATCH" ] || { echo "missing kernel patch: $KPATCH" >&2; exit 1; }
+git apply --check "$KPATCH"
+git apply "$KPATCH"
+printf '%s\n' "-g$(git rev-parse --short=12 HEAD)" > .scmversion
+cleanup_source() {
+	rm -f .scmversion
+	git apply -R "$KPATCH"
+}
+trap cleanup_source EXIT
 # Keep the builder's account, host and zone out of the image.
 export KBUILD_BUILD_USER=tater KBUILD_BUILD_HOST=tater-rook-build TZ=UTC
 export ARCH=arm64 CROSS_COMPILE

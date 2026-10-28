@@ -42,9 +42,18 @@ def main() -> int:
             "-e MTK_USB_CMD_CHANGE_MODE -e USB_RTL8152 -e USB_ANNOUNCE_NEW_DEVICES",
             "'CONFIG_MTK_USB_CMD_CHANGE_MODE=y'",
             "'CONFIG_USB_RTL8152=y'",
+            "patches/0001-fix-mchange-irq-prototype.patch",
+            'git apply --check "$KPATCH"',
         ):
             if value not in rook_build:
                 raise ValueError(f"Rook Ethernet kernel build is missing {value}")
+        rook_patch = (ROOT / "platforms/spot/patches/0001-fix-mchange-irq-prototype.patch").read_text(
+            encoding="utf-8"
+        )
+        if rook_patch.count("mt_usb_ext_iddig_int(0, NULL)") != 3:
+            raise ValueError("Rook command-mode patch does not fix all three forced-role calls")
+        if "extern irqreturn_t mt_usb_ext_iddig_int(int irq, void *dev_id);" not in rook_patch:
+            raise ValueError("Rook command-mode patch does not fix the IDDIG IRQ prototype")
 
         athena_root = ROOT / "platforms/show/tools/linux/athena/kernel"
         athena = (athena_root / "dts/mt8183-amazon-athena.dts").read_text(encoding="utf-8")

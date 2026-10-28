@@ -32,13 +32,16 @@ verified, and published.
 5. Change only that target's firmware lock entry.
 6. Build and verify its factory and OTA bundles before hardware testing.
 
-Biscuit and Radar have a manual CI kernel workflow. It builds both matrix
-entries from `platforms/dot/tools/linux/build-kernel.sh`, retaining separate
-outputs and checksums. Checkers, Crown, Athena, and Rook are represented in
-the target manifest and source tree, but their Tater-hosted binary switch must
-wait until their complete toolchain and target-specific boot inputs are pinned
-in CI. Until then the firmware may use this repository for source while
-retaining the existing hash-pinned binary baseline.
+Biscuit and Radar have a shared manual CI kernel workflow. It builds both
+matrix entries from `platforms/dot/tools/linux/build-kernel.sh`, retaining
+separate outputs and checksums. Rook has its own manual workflow with the
+pinned Amazon source revision, Arm GCC 8.3 toolchain, running configuration,
+and tracked fix for the previously dormant MediaTek command-mode option.
+Checkers, Crown, and Athena are represented in the target manifest and source
+tree, but their Tater-hosted binary switch must wait until their complete
+toolchain and target-specific boot inputs are pinned in CI. Until then the
+firmware may use this repository for source while retaining the existing
+hash-pinned binary baseline.
 
 The current Dot-family prerelease is
 [`dot-kernel-v1.0.0`](https://github.com/TaterTotterson/Tater-Echo-Linux/releases/tag/dot-kernel-v1.0.0).

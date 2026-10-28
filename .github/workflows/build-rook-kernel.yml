@@ -46,6 +46,9 @@ jobs:
             'source=https://github.com/amazon-oss/android_kernel_amazon_mt8163' \
             'commit=4174e0b4d0e2eb452d14fbe3c0e5094611f748b6' \
             'toolchain=gcc-arm-8.3-2019.03-x86_64-aarch64-linux-gnu' \
+            "tater_linux_commit=$GITHUB_SHA" \
+            'patch=platforms/spot/patches/0001-fix-mchange-irq-prototype.patch' \
+            "patch_sha256=$(sha256sum platforms/spot/patches/0001-fix-mchange-irq-prototype.patch | awk '{print $1}')" \
             > dist/rook/SOURCE
           (cd dist/rook && sha256sum tater-echo-rook-kernel.* SOURCE > SHA256SUMS)
           cat dist/rook/SHA256SUMS

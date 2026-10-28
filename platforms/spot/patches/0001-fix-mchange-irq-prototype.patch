@@ -1,0 +1,59 @@
+From: Tater <233990140+TaterTotterson@users.noreply.github.com>
+Subject: [PATCH] usb: mediatek: fix command-mode IDDIG handler prototype
+
+CONFIG_MTK_USB_CMD_CHANGE_MODE calls the external IDDIG IRQ handler directly
+when switching between forced host and device modes. The header declared a
+no-argument function even though the handler has the standard IRQ signature,
+so enabling the otherwise dormant option failed to compile.
+
+Use the real signature and pass dummy IRQ arguments for the command-mode
+calls. The handler does not inspect either argument.
+---
+ drivers/misc/mediatek/usb20/musb_core.c | 6 +++---
+ drivers/misc/mediatek/usb20/musb_core.h | 2 +-
+ 2 files changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/misc/mediatek/usb20/musb_core.c b/drivers/misc/mediatek/usb20/musb_core.c
+index 2c32794f797..5336ee4c2bd 100644
+--- a/drivers/misc/mediatek/usb20/musb_core.c
++++ b/drivers/misc/mediatek/usb20/musb_core.c
+@@ -2855,13 +2855,13 @@ static ssize_t musb_change_mode_write(struct file *file,
+ 					__func__, __LINE__);
+ 				/*step3, change to host mode*/
+ #endif
+-				mt_usb_ext_iddig_int();
++				mt_usb_ext_iddig_int(0, NULL);
+ 				DBG(0, "[USB]%s:%d step: done\n",
+ 					__func__, __LINE__);
+ 			}
+ 		} else {
+ 			/*directly change to host mode*/
+-			mt_usb_ext_iddig_int();
++			mt_usb_ext_iddig_int(0, NULL);
+ 			DBG(0, "[USB]%s:%d step: done\n", __func__, __LINE__);
+ 		}
+ 	} else if (!strncmp(buf, "device", 6)) {
+@@ -2875,7 +2875,7 @@ static ssize_t musb_change_mode_write(struct file *file,
+ 				__func__, __LINE__);
+ 			msleep(500);
+ 			/*step1, stop host*/
+-			mt_usb_ext_iddig_int();
++			mt_usb_ext_iddig_int(0, NULL);
+ 			DBG(0, "[USB]%s:%d step: 2\n", __func__, __LINE__);
+ 			/*step2, wait a while*/
+ 			msleep(2000);
+diff --git a/drivers/misc/mediatek/usb20/musb_core.h b/drivers/misc/mediatek/usb20/musb_core.h
+index 254cc050e3b..37ed28a662e 100644
+--- a/drivers/misc/mediatek/usb20/musb_core.h
++++ b/drivers/misc/mediatek/usb20/musb_core.h
+@@ -366,7 +366,7 @@ struct musb_context_registers {
+  * struct musb - Driver instance data.
+  */
+ #ifdef CONFIG_MTK_USB_CMD_CHANGE_MODE
+-extern void mt_usb_ext_iddig_int(void);
++extern irqreturn_t mt_usb_ext_iddig_int(int irq, void *dev_id);
+ 
+ enum usb_force_mode {
+ 	USB_FORCE_IDLE = 0,
+-- 
+2.52.0
