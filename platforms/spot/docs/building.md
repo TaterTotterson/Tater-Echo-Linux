@@ -78,14 +78,23 @@ ssh root@<address> 'mount --bind /tmp/echod-test /usr/local/bin/techo5 && killal
 
 ## 4. The Bluetooth kernel (Linux)
 
-[tools/linux/build-kernel.sh](../tools/linux/build-kernel.sh) rebuilds LineageOS's rook kernel at the
+[tools/linux/build-kernel.sh](../tools/linux/build-kernel.sh) rebuilds LineageOS's Rook kernel at the
 commit the boot image came from (so `amzn-bcmdhd.ko` still loads), with the running kernel's
-configuration from [docs/dumps](dumps) and Bluetooth added. Its header lists the source and the
-toolchain (Arm's GCC 8.3, downloaded without root). From techo5-spot, on Linux or inside WSL's Ubuntu:
+configuration from [docs/dumps](dumps), Bluetooth, built-in RTL8152 Ethernet, and MediaTek's bounded
+`/proc/mchange` host/device switch. The internal Broadcom Wi-Fi adapter stays on the separate USB1
+controller. Its header lists the source and the toolchain (Arm's GCC 8.3, downloaded without root).
+From Tater Echo Linux, on Linux or inside WSL's Ubuntu:
 
 ```
 bash tools/linux/build-kernel.sh -o inputs/Image.gz-dtb-rook-bt
 ```
+
+The build also writes `inputs/Image.gz-dtb-rook-bt.config` and
+`inputs/Image.gz-dtb-rook-bt.System.map`. The **Build Rook Ethernet kernel**
+GitHub workflow performs the same pinned build and uploads those files with a
+source record and checksums. Enabling the driver and role control is not a
+hardware qualification: the candidate still has to prove enumeration, DHCP,
+traffic, unplug, reboot, Wi-Fi fallback, and restoration of USB serial.
 
 ## 5. The root filesystem
 

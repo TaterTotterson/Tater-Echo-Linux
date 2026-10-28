@@ -1,0 +1,57 @@
+name: Build Rook Ethernet kernel
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  kernel:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    env:
+      TOOLCHAIN_URL: https://armkeil.blob.core.windows.net/developer/Files/downloads/gnu-a/8.3-2019.03/binrel/gcc-arm-8.3-2019.03-x86_64-aarch64-linux-gnu.tar.xz
+      TOOLCHAIN_SHA256: 8ce3e7688a47d8cd2d8e8323f147104ae1c8139520eca50ccf8a7fa933002731
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Install kernel build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends bc bison flex libelf-dev libssl-dev xz-utils
+
+      - name: Fetch pinned Arm GCC 8.3 toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive=/tmp/gcc-arm-8.3-2019.03-x86_64-aarch64-linux-gnu.tar.xz
+          curl -sSfL --retry 5 -o "$archive" "$TOOLCHAIN_URL"
+          echo "$TOOLCHAIN_SHA256  $archive" | sha256sum -c -
+          mkdir -p /tmp/tater-toolchain
+          tar -C /tmp/tater-toolchain -xJf "$archive"
+
+      - name: Build Rook kernel with RTL8152 and bounded host switching
+        shell: bash
+        env:
+          KREPO: /tmp/tater-kernel
+          KSRC: /tmp/tater-kernel-rook
+          KOUT: /tmp/tater-kout-rook
+          CROSS_COMPILE: /tmp/tater-toolchain/gcc-arm-8.3-2019.03-x86_64-aarch64-linux-gnu/bin/aarch64-linux-gnu-
+        run: |
+          set -euo pipefail
+          out="$PWD/dist/rook/tater-echo-rook-kernel.Image.gz-dtb"
+          bash platforms/spot/tools/linux/build-kernel.sh -o "$out"
+          printf '%s\n' \
+            'source=https://github.com/amazon-oss/android_kernel_amazon_mt8163' \
+            'commit=4174e0b4d0e2eb452d14fbe3c0e5094611f748b6' \
+            'toolchain=gcc-arm-8.3-2019.03-x86_64-aarch64-linux-gnu' \
+            > dist/rook/SOURCE
+          (cd dist/rook && sha256sum tater-echo-rook-kernel.* SOURCE > SHA256SUMS)
+          cat dist/rook/SHA256SUMS
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: tater-echo-rook-ethernet-kernel-${{ github.sha }}
+          path: dist/rook/
+          if-no-files-found: error

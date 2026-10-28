@@ -17,6 +17,8 @@ REQUIRED_49 = (
     "CONFIG_USB_ANNOUNCE_NEW_DEVICES=y",
 )
 
+REQUIRED_49_RTL8152 = REQUIRED_49 + ("CONFIG_USB_RTL8152=y",)
+
 
 def require(path: Path, values: tuple[str, ...]) -> None:
     contents = path.read_text(encoding="utf-8")
@@ -32,21 +34,40 @@ def main() -> int:
             if value not in dot.splitlines():
                 raise ValueError(f"Dot USB fragment is missing {value}")
 
-        require(ROOT / "platforms/show/docs/dumps/cronos-lineage-kernel-4.9.337.config", REQUIRED_49)
+        require(ROOT / "platforms/show/docs/dumps/cronos-lineage-kernel-4.9.337.config", REQUIRED_49_RTL8152)
         require(ROOT / "platforms/spot/docs/dumps/rook-lineage-kernel-4.9.337.config", REQUIRED_49)
 
-        athena = (ROOT / "platforms/show/tools/linux/athena/kernel/dts/mt8183-amazon-athena.dts").read_text(encoding="utf-8")
-        for fail_closed in ('dr_mode = "peripheral";', "&usb_host {\n\tstatus = \"disabled\";"):
-            if fail_closed not in athena:
-                raise ValueError("Athena no longer has the expected peripheral-only hardware gate")
+        rook_build = (ROOT / "platforms/spot/tools/linux/build-kernel.sh").read_text(encoding="utf-8")
+        for value in (
+            "-e MTK_USB_CMD_CHANGE_MODE -e USB_RTL8152 -e USB_ANNOUNCE_NEW_DEVICES",
+            "'CONFIG_MTK_USB_CMD_CHANGE_MODE=y'",
+            "'CONFIG_USB_RTL8152=y'",
+        ):
+            if value not in rook_build:
+                raise ValueError(f"Rook Ethernet kernel build is missing {value}")
+
+        athena_root = ROOT / "platforms/show/tools/linux/athena/kernel"
+        athena = (athena_root / "dts/mt8183-amazon-athena.dts").read_text(encoding="utf-8")
+        for value in (
+            'dr_mode = "otg";',
+            "usb-role-switch;",
+            "role-switch-default-mode = \"peripheral\";",
+            "id-gpios = <&pio 41 GPIO_ACTIVE_HIGH>;",
+            "vbus-supply = <&usb_otg_vbus>;",
+            "&usb_host {\n\tstatus = \"okay\";",
+        ):
+            if value not in athena:
+                raise ValueError(f"Athena OTG kernel is missing {value}")
+        require(athena_root / "athena_defconfig", ("CONFIG_USB_RTL8152=y", "CONFIG_USB_MTU3_DUAL_ROLE=y"))
     except (OSError, ValueError) as error:
         print(f"USB Ethernet audit failed: {error}", file=sys.stderr)
         return 1
 
     print("static USB Ethernet audit passed")
     print("  Biscuit/Radar: explicit MediaTek role control and usbnet/CDC-ECM present")
-    print("  Checkers/Crown/Rook: host and usbnet/CDC-ECM prerequisites present; role/VBUS remains unqualified")
-    print("  Athena: peripheral-only device tree gate remains in place")
+    print("  Checkers/Crown: RTL8152 and usbnet prerequisites present; role/VBUS remains unqualified")
+    print("  Athena: RTL8152 and hardware-driven OTG role switching present; adapter validation remains")
+    print("  Rook: reproducible build enables RTL8152 and bounded /proc/mchange role switching")
     return 0
 
 
