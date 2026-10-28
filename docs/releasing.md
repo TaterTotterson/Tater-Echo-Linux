@@ -50,6 +50,14 @@ based directly on the previously pinned Dot source commit and contains only
 the Tater USB Ethernet kernel integration. Its Biscuit and Radar images,
 configs, System maps, and checksums are published separately.
 
+The Rook hardware-validation prerelease is
+[`rook-kernel-v1.0.0`](https://github.com/TaterTotterson/Tater-Echo-Linux/releases/tag/rook-kernel-v1.0.0).
+It is built from `a514109abeccb75c67593d3b1b9f614f181436f3` and preserves
+the pinned `4.9.337-g4174e0b4d0e2` module ABI while adding RTL8152 and
+bounded `/proc/mchange` role switching. Its kernel, exact config, System map,
+source record, and checksums are published together; hardware qualification is
+still required before promotion.
+
 The non-Dot inputs are also recorded in
 [`baselines/satellite-baselines-v1.json`](../baselines/satellite-baselines-v1.json).
 The manual **Build satellite baseline mirror** workflow verifies the original
