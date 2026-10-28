@@ -192,11 +192,19 @@ done
 count() { grep -aoiE "$pat" | tr 'A-Z' 'a-z' | sort | uniq -c; }
 ours=$(tar -xJOf "$SRCTAR" | count || true)
 theirs=$(tar -xJOf "$CACHE/linux-$KVER.tar.xz" | count || true)
-names=$(tar -tJf "$SRCTAR" | grep -iE "$pat" || true)
-if [ -n "$names" ] || [ "$ours" != "$theirs" ]; then
+# Compare matching paths after removing each archive's different top-level
+# directory. A hosted builder named "runner" must not reject upstream files
+# such as selftests/kselftest/runner.sh that are present in kernel.org's tarball
+# too; only an additional path from this build is private build-host evidence.
+names=$(tar -tJf "$SRCTAR" | grep -iE "$pat" | sed 's|^[^/]*/||' || true)
+source_names=$(tar -tJf "$CACHE/linux-$KVER.tar.xz" | grep -iE "$pat" | sed 's|^[^/]*/||' || true)
+if [ "$names" != "$source_names" ] || [ "$ours" != "$theirs" ]; then
 	echo "$SRCTAR carries something of this computer:" >&2
 	echo "  kernel.org's: $theirs" >&2; echo "  ours: $ours" >&2
-	[ -z "$names" ] || echo "  in names: $(echo "$names" | head -5)" >&2
+	[ "$names" = "$source_names" ] || {
+		echo "  kernel.org matching names: $(echo "$source_names" | head -5)" >&2
+		echo "  ours matching names: $(echo "$names" | head -5)" >&2
+	}
 	exit 1
 fi
 python3 "$HERE/check-source.py" --config "$OUT/kernel.config" "$SRCTAR" "$OUT/boot-athena.img"
