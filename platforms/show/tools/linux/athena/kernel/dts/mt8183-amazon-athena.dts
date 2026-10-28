@@ -722,6 +722,7 @@
 	/* VBUS is sensed on GPIO165, not by the PHY: hold the session valid in the MAC and the U2 PHY
 	 * (patches/patch-usb-force-vbus.py), which early test builds did with devmem */
 	mediatek,force-vbus;
+	vbus-supply = <&usb_otg_vbus>;
 	vusb33-supply = <&mt6358_vusb_reg>;
 	pinctrl-names = "default";
 	pinctrl-0 = <&usb_pins>;
@@ -738,6 +739,8 @@
 };
 
 &usb_host {
+	vbus-supply = <&usb_otg_vbus>;
+	vusb33-supply = <&mt6358_vusb_reg>;
 	status = "okay";
 };
 

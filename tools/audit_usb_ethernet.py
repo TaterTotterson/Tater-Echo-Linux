@@ -63,7 +63,8 @@ def main() -> int:
             "role-switch-default-mode = \"peripheral\";",
             "id-gpios = <&pio 41 GPIO_ACTIVE_HIGH>;",
             "vbus-supply = <&usb_otg_vbus>;",
-            "&usb_host {\n\tstatus = \"okay\";",
+            "&usb_host {\n\tvbus-supply = <&usb_otg_vbus>;\n"
+            "\tvusb33-supply = <&mt6358_vusb_reg>;\n\tstatus = \"okay\";",
         ):
             if value not in athena:
                 raise ValueError(f"Athena OTG kernel is missing {value}")

@@ -38,10 +38,15 @@ class AthenaUsbOtgTests(unittest.TestCase):
         self.assertIn("id-gpios = <&pio 41 GPIO_ACTIVE_HIGH>;", dts)
         self.assertIn("vbus-gpios = <&pio 165 GPIO_ACTIVE_HIGH>;", dts)
         self.assertIn("gpio = <&pio 150 GPIO_ACTIVE_HIGH>;", dts)
-        self.assertIn("vbus-supply = <&usb_otg_vbus>;", dts)
+        self.assertEqual(dts.count("vbus-supply = <&usb_otg_vbus>;"), 3)
+        self.assertEqual(dts.count("vusb33-supply = <&mt6358_vusb_reg>;"), 2)
         self.assertIn("PINMUX_GPIO41__FUNC_GPIO41", dts)
         self.assertIn("PINMUX_GPIO150__FUNC_GPIO150", dts)
-        self.assertRegex(dts, r"&usb_host \{\s*status = \"okay\";")
+        self.assertRegex(
+            dts,
+            r"&usb_host \{\s*vbus-supply = <&usb_otg_vbus>;\s*"
+            r"vusb33-supply = <&mt6358_vusb_reg>;\s*status = \"okay\";",
+        )
 
 
 if __name__ == "__main__":

@@ -74,8 +74,11 @@ micro-USB connector has three independently modelled stock signals: GPIO41 is
 the active-low ID input, GPIO165 detects incoming VBUS, and GPIO150 enables the
 5 V host supply. A normal micro-B data cable therefore keeps gadget serial and
 RNDIS active. An OTG plug grounds ID, switches the same controller to xHCI host
-mode, and only then enables adapter power. Peripheral mode is the explicit
-startup default while the GPIO connector driver samples those inputs.
+mode, and only then enables adapter power. The same 5 V regulator is declared
+on the MTU3 parent, its xHCI child, and the connector so each driver gets a real,
+reference-counted supply rather than silently substituting a dummy regulator;
+the xHCI child also names the PMIC's 3.3 V USB rail. Peripheral mode is the
+explicit startup default while the GPIO connector driver samples those inputs.
 
 The kernel includes the common RTL8150/RTL8152, ASIX, CDC Ethernet/NCM,
 LAN78xx, SMSC and related USB Ethernet drivers built in (not as external
