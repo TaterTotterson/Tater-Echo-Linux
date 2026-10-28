@@ -22,6 +22,9 @@ import zlib
 
 # What the patches leave in the tree: a marker each, in the file it patches (patches/*.py).
 MARKERS = {
+    "drivers/phy/mediatek/phy-mtk-tphy.c": b"athena: force-vbus only for the peripheral session",
+    "drivers/usb/mtu3/mtu3_dr.c": b"athena: force-vbus is role-aware in the T-PHY",
+    "drivers/usb/mtu3/mtu3_core.c": b"athena: force-vbus",
     "drivers/devfreq/mtk-cci-devfreq.c": b"athena: sram limits",
     "drivers/thermal/mediatek/auxadc_thermal.c": b"athena: devinfo calibration",
     "sound/soc/mediatek/mt8183/mt8183-afe-pcm.c": b"leave cache-only mode before the clocks are enabled",

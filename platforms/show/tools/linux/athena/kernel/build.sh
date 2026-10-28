@@ -51,8 +51,9 @@ export KBUILD_BUILD_USER=techo5 KBUILD_BUILD_HOST=athena-build
 # v1.2.24's, 2026-10-20 12:00 the echo reference and panic on an RCU stall, 2026-10-23 12:00 the
 # 0x35 panel on Amazon's DSI link (#187), 2026-10-26 12:00 the GPU on panfrost,
 # 2026-10-27 05:00 Athena's hardware-driven USB OTG role switch,
-# 2026-10-28 12:00 the explicit MTU3/xHCI host supplies.
-export KBUILD_BUILD_TIMESTAMP="2026-10-28 12:00:00 UTC" KBUILD_BUILD_VERSION=1
+# 2026-10-28 12:00 the explicit MTU3/xHCI host supplies, 2026-10-28 13:00 the role-aware
+# T-PHY session signals for Athena's xHCI host mode.
+export KBUILD_BUILD_TIMESTAMP="2026-10-28 13:00:00 UTC" KBUILD_BUILD_VERSION=1
 export LC_ALL=C TZ=UTC
 
 mkdir -p "$WORK/cache" "$OUT"

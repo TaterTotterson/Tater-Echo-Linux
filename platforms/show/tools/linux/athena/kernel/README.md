@@ -55,7 +55,7 @@ reasoning; each one checks its anchors and is a no-op on a tree it has already p
 | `patch-kbuild.py` | Kconfig `SND_SOC_MT8183_ATHENA` and the Makefile lines for the machine driver and the DTB. |
 | `patch-afe-di2.py` | mt8183 AFE: the second I2S2 data input (DI2) and VUL12's 4-channel mode, for athena's 4 microphones. Also fixes an upstream bug: UL1_CH2's "I2S0_CH2" switch wrote channel 1's register. |
 | `patch-afe-awb-dl1.py` | mt8183 AFE: routes from DL1 into UL2 (the AWB memif), so its "UL2_CH1 DL1_CH1" and "UL2_CH2 DL1_CH2" switches exist and the machine driver's `DL1_AWB_Record` (hw:0,1) records what DL1 sends the amplifier: the echo reference, as on Amazon's kernel. They have to be the AFE's: it makes its mixers' controls at platform probe, before a card's routes are added. |
-| `patch-usb-force-vbus.py` | mtu3 + T-PHY: a `mediatek,force-vbus` property. athena senses VBUS on a GPIO, so neither the PHY nor the controller sees a session and USB device mode never comes up without it. |
+| `patch-usb-force-vbus.py` | mtu3 + T-PHY: a role-aware `mediatek,force-vbus` property. Athena senses VBUS on a GPIO, so device mode needs the session signals forced; host mode clears those device-session overrides and explicitly selects `PHY_MODE_USB_HOST` so xHCI can observe the attached device. |
 | `patch-tcs3400.py` | tcs3472 IIO driver: support the AMS TCS3400 light sensor (no command-type field, its own gains, integration step and interrupt clear) and the `ams,tcs3400` compatible. |
 | `patch-btmtksdio-bdaddr.py` | btmtksdio: program a public address set through mgmt again on every power-on, since the controller can lose it while off. |
 | `patch-btmtksdio-p192.py` | btmtksdio, MT7663 only: report P-256 link keys as P-192. The chip encrypts with E0 anyway, and the core dropped the link right after pairing ("Missing AES-CCM usage"). |
@@ -79,6 +79,9 @@ on the MTU3 parent, its xHCI child, and the connector so each driver gets a real
 reference-counted supply rather than silently substituting a dummy regulator;
 the xHCI child also names the PMIC's 3.3 V USB rail. Peripheral mode is the
 explicit startup default while the GPIO connector driver samples those inputs.
+The MediaTek role switch also updates the USB2 PHY mode: the GPIO-backed VBUS
+workaround is enabled for peripheral serial/RNDIS and removed for xHCI host
+operation, rather than leaving B-device session signals forced in both roles.
 
 The kernel includes the common RTL8150/RTL8152, ASIX, CDC Ethernet/NCM,
 LAN78xx, SMSC and related USB Ethernet drivers built in (not as external
