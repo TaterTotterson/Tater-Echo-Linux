@@ -65,8 +65,11 @@ class TwrpHandoffImageTests(unittest.TestCase):
             raw = lzma.decompress(compressed, format=lzma.FORMAT_AUTO)
             self.assertEqual(raw.count(b"service tater-restore-linux "), 1)
             self.assertEqual(raw.count(b"tater-twrp-handoff: restoring Linux"), 1)
-            self.assertEqual(raw.count(b"TWRP cleared the boot target; re-arming Linux"), 1)
-            self.assertEqual(raw.count(b"while :; do"), 1)
+            self.assertEqual(raw.count(b"bs=13 count=1"), 1)
+            self.assertEqual(raw.count(b"bs=1 seek=7168"), 1)
+            self.assertIn(b"Linux restored, armed, and verified", raw)
+            self.assertNotIn(b"conv=notrunc,sync", raw)
+            self.assertNotIn(b"TWRP cleared the boot target; re-arming Linux", raw)
             names = mkimage.verify_cpio(raw)
             self.assertIn("sbin/tater-restore-linux.sh", names)
 

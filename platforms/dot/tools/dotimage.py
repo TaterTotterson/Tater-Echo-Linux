@@ -157,7 +157,7 @@ def with_member(apk, member, path, out):
         f.write(gzip.compress(buf.getvalue()))
 
 
-TWRP_HANDOFF_SERVICE = b'''\n+# Tater Linux runs from this board's recovery partition.  A Volume-Up handoff
+TWRP_HANDOFF_SERVICE = b'''\n# Tater Linux runs from this board's recovery partition.  A Volume-Up handoff
 # boots this TWRP image from RAM, then puts Linux back before the user leaves
 # TWRP so the following reboot behaves like the other Echo satellites.
 service tater-restore-linux /sbin/sh /sbin/tater-restore-linux.sh
@@ -221,27 +221,22 @@ if [ "$actual" != "$wanted" ]; then
 fi
 
 arm_linux() {
-    printf 'boot-recovery' | dd of=$MISC bs=32 count=1 conv=notrunc,sync 2>/dev/null
-    printf 'TECHO5-TRIES 0 twrp handoff\n' | dd of=$MISC bs=512 seek=14 count=1 conv=notrunc,sync 2>/dev/null
+    # TWRP's toybox dd disables the notrunc/sync conversion flags. Exact byte counts update
+    # only the intended fields of the block device and work in this recovery.
+    printf 'boot-recovery' | dd of=$MISC bs=13 count=1 2>/dev/null
+    printf 'TECHO5-TRIES 0 twrp handoff\n' | dd of=$MISC bs=1 seek=7168 2>/dev/null
     sync
+    [ "$(head -c 13 $MISC 2>/dev/null)" = boot-recovery ]
 }
 
-arm_linux
-echo "tater-twrp-handoff: Linux restored and verified; TWRP remains active in RAM"
+if ! arm_linux; then
+    echo "tater-twrp-handoff: ERROR: Linux boot request did not stick"
+    cp $TMP $S/twrp-handoff.log 2>/dev/null || true
+    exit 1
+fi
+echo "tater-twrp-handoff: Linux restored, armed, and verified; TWRP remains active in RAM"
 cp $TMP $S/twrp-handoff.log 2>/dev/null || true
 : > $S/twrp-handoff.ready
-
-# TWRP clears the bootloader message later in its own startup on some Dot
-# builds.  Keep this service alive and re-arm Linux only when that happens.
-# Reads are harmless; the eMMC is written at most once per clear rather than
-# continuously while somebody is using TWRP.
-while :; do
-    sleep 2
-    [ "$(head -c 13 $MISC 2>/dev/null)" = boot-recovery ] && continue
-    echo "tater-twrp-handoff: TWRP cleared the boot target; re-arming Linux"
-    arm_linux
-    cp $TMP $S/twrp-handoff.log 2>/dev/null || true
-done
 '''
 
 
