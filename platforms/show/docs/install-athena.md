@@ -8,8 +8,11 @@ no LineageOS for it. TECHO5 brings its own 64-bit mainline Linux kernel and writ
   beside it, root filesystem slots `a` and `b`, as on the other Shows (`slotctl`).
 
 The kernel mounts `system` read-only as `/` and runs `/init` there. TECHO5 keeps its state in one
-folder on `userdata` (`userdata/techo5`, which is `/data` on the unit) and touches nothing else there.
-`vendor`, `recovery` (TWRP) and the unlock's own partitions are never written.
+folder on `userdata` (`userdata/techo5`, which is `/data` on the unit). A factory reinstall preserves
+Tater pairing, Wi-Fi, SSH and satellite settings by default, but removes any prior application OTA
+slot so the factory bundle boots its matching application. Pass `--factory-reset` to clear Tater's
+userdata and return to setup mode. `vendor`, `recovery` (TWRP) and the unlock's own partitions are
+never written.
 
 There is also an older way that keeps Amazon's 32-bit kernel: see
 [Amazon's kernel instead](#amazons-kernel-instead) at the end.
@@ -65,6 +68,7 @@ was verified on a physical Athena on 2026-10-26. It changes only the writable `s
 ```
 python3 tools/install-athena.py --name Kitchen
 python3 tools/install-athena.py --name Kitchen --wifi MyNetwork --ssh-key ~/.ssh/id_ed25519.pub
+python3 tools/install-athena.py --factory-reset --name Kitchen
 python3 tools/install-athena.py --dry-run
 ```
 
@@ -96,7 +100,9 @@ What it does, each step checked before the next:
    read back that doesn't match is written again once; a second mismatch stops with the unit still
    in TWRP. `system` goes first because TECHO5's store also starts under Amazon's kernel, so a unit
    stopped between the two still runs.
-6. **Settings** in `userdata/techo5`: the name (a unit that has one keeps it), the Home Assistant key
+6. **Settings** in `userdata/techo5`: by default the existing Tater pairing, Wi-Fi, SSH and satellite
+   settings are kept, while stale application OTA slots are removed. With `--factory-reset`, those
+   settings are cleared and the unit returns to setup mode. The name (a unit that has one keeps it), the Home Assistant key
    (a unit that has one keeps it, so Home Assistant keeps the device; a copy goes to
    `backups/<serial>/home-assistant.key`), an SSH key (`--ssh-key`, which also turns SSH on) and a
    Wi-Fi network (`--wifi`; only the WPA key reaches the unit, never the passphrase). The network is

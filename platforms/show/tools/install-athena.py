@@ -796,6 +796,34 @@ def userdata_ready(adb, ud):
     return ready
 
 
+def prepare_tater_userdata(adb, ud, factory_reset):
+    """Keep setup by default, but never keep an older application OTA over a factory image."""
+    if factory_reset:
+        paths = [
+            ud + '/local/etc/tater',
+            ud + '/local/share/tater',
+            ud + '/tater-linux',
+            ud + '/misc/techo5',
+            ud + '/techo5-linux',
+            ud + '/techo5/misc/techo5',
+            ud + '/techo5/techo5-linux',
+        ]
+        marker = 'TATER-SETUP-CLEARED'
+    else:
+        paths = [
+            ud + '/tater-linux/app',
+            ud + '/tater-linux/app.new',
+            ud + '/techo5-linux/app',
+            ud + '/techo5-linux/app.new',
+            ud + '/techo5/techo5-linux/app',
+            ud + '/techo5/techo5-linux/app.new',
+        ]
+        marker = 'TATER-APP-SLOTS-CLEARED'
+    answer = adb.sh('rm -rf %s; sync; echo %s' % (' '.join(quote(path) for path in paths), marker))
+    if marker not in answer:
+        fail('could not prepare userdata for the factory install: %s' % answer)
+
+
 def read_partition(adb, n, size, path):
     """A partition into a file here, compared with the sha256 the unit computes of its own."""
     adb.exec_out_to_file('dd if=%s bs=1048576 2>/dev/null' % dev(n), path + '.partial')
@@ -1059,6 +1087,8 @@ def main(argv=None):
                     'saved one, or the Show\'s screen')
     ap.add_argument('--wifi-passphrase-file', help='a file holding the --wifi passphrase, for running from a script')
     ap.add_argument('--dry-run', action='store_true', help='check the unit and the images; write nothing')
+    ap.add_argument('--factory-reset', action='store_true',
+                    help='erase Wi-Fi, pairing, SSH and satellite settings instead of preserving them')
     ap.add_argument('--force', action='store_true', help='do not ask before writing')
     ap.add_argument('--no-watch', action='store_true', help='restart the unit and stop; do not watch the first boot')
     ap.add_argument('--show-amp-tables', metavar='BOOT_IMG',
@@ -1140,6 +1170,9 @@ def main(argv=None):
     state_dir = ud + '/techo5/misc/techo5' if ud else None
     unit_name = unit_file(adb, state_dir + '/name') if ud else None
     unit_psk = unit_file(adb, state_dir + '/psk') if ud else None
+    if a.factory_reset:
+        unit_name = None
+        unit_psk = None
     if a.name is not None:
         a.name = ask_name(a.name, '')
     elif unit_name:
@@ -1252,6 +1285,10 @@ def main(argv=None):
     else:
         lines += ['boot, vendor, recovery (TWRP) and the unlock are not touched; userdata only gains settings in its']
     lines += ['techo5 folder. The backup is in %s.' % folder]
+    if a.factory_reset:
+        lines += ['Wi-Fi, pairing, SSH and satellite settings will be erased (--factory-reset).']
+    else:
+        lines += ['Existing Tater pairing, Wi-Fi, SSH and satellite settings are preserved.']
     confirm(a.force, lines)
     for n in targets:
         mounted = mounts_of(adb, dev(n))
@@ -1273,6 +1310,10 @@ def main(argv=None):
 
     # ------------------------------------------------------------------------------------ 6. settings
     step('settings')
+    userdata_writable(adb, ud)
+    prepare_tater_userdata(adb, ud, a.factory_reset)
+    note('prior Tater setup cleared; the unit will enter setup mode' if a.factory_reset else
+         'existing Tater setup preserved; prior application OTA slots cleared')
     os.makedirs(os.path.dirname(key_file) or '.', exist_ok=True)
     local_psk = None
     if os.path.exists(key_file):
@@ -1296,7 +1337,6 @@ def main(argv=None):
         psk = new_api_key()
         write_private(key_file, psk)
         note('Home Assistant key: new, in %s' % key_file)
-    userdata_writable(adb, ud)
     ready = userdata_ready(adb, ud)
     linux_dir = ud + '/techo5/techo5-linux'
     adb.sh('mkdir -p %s %s && chmod 700 %s' % (quote(state_dir), quote(linux_dir), quote(state_dir)))

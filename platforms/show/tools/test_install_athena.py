@@ -264,6 +264,9 @@ class FakeTWRP:
     def prelude(self):
         return ('id() { echo "uid=0(root) gid=0(root)"; }\n'
                 'getprop() { case "$1" in ro.product.device) echo athena;; *) echo;; esac; }\n'
+                'readlink() { if [ "$1" = -f ]; then shift; '
+                '[ -L "$1" ] && command readlink "$1" || printf "%s\\n" "$1"; '
+                'else command readlink "$@"; fi; }\n'
                 'dd() { command dd "$@" conv=notrunc; }\n'
                 'mount() { echo "mount not simulated" >&2; return 1; }\n'
                 'umount() { :; }\n')
@@ -561,6 +564,39 @@ class SimulatedTWRP(unittest.TestCase):
         self.assertIsNone(err, out)
         self.assertIn("boot now holds TECHO5's", out)
         self.assertEqual(u.snapshot(), u2_before)
+
+    def test_factory_reinstall_preserves_setup_but_removes_old_app_ota(self):
+        u = self.unit()
+        u.put('data/local/etc/tater/native.json', b'{"url":"http://tater:8501"}\n')
+        u.put('data/local/etc/tater/device_token', b'paired-token\n')
+        u.put('data/tater-linux/wpa_supplicant.conf', b'network={}\n')
+        u.put('data/tater-linux/ssh/mode', b'password\n')
+        u.put('data/tater-linux/app/slots/a/tater-echo', b'old app')
+        out, err = self.install(u, *self.mainline_args())
+        self.assertIsNone(err, out)
+        self.assertEqual(b'paired-token\n', u.get('data/local/etc/tater/device_token'))
+        self.assertEqual(b'network={}\n', u.get('data/tater-linux/wpa_supplicant.conf'))
+        self.assertEqual(b'password\n', u.get('data/tater-linux/ssh/mode'))
+        self.assertFalse(os.path.exists(os.path.join(
+            u.root, 'data/tater-linux/app/slots/a/tater-echo')))
+        self.assertIn('prior application OTA slots cleared', out)
+
+    def test_factory_reset_clears_tater_setup(self):
+        u = self.unit()
+        u.put('data/local/etc/tater/native.json', b'{"url":"http://tater:8501"}\n')
+        u.put('data/local/etc/tater/device_token', b'paired-token\n')
+        u.put('data/tater-linux/wpa_supplicant.conf', b'network={}\n')
+        u.put('data/tater-linux/ssh/mode', b'password\n')
+        out, err = self.install(u, '--factory-reset', *self.mainline_args())
+        self.assertIsNone(err, out)
+        for relative in (
+                'data/local/etc/tater/native.json',
+                'data/local/etc/tater/device_token',
+                'data/tater-linux/wpa_supplicant.conf',
+                'data/tater-linux/ssh/mode'):
+            self.assertFalse(os.path.exists(os.path.join(u.root, relative)), relative)
+        self.assertEqual(b'Kitchen\n', u.get('data/techo5/misc/techo5/name'))
+        self.assertIn('unit will enter setup mode', out)
 
     def test_dry_run_writes_nothing(self):
         u = self.unit()
