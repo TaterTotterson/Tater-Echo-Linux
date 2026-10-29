@@ -452,22 +452,28 @@ t5_wifi_joined() { wpa_cli -p /run/wpa -i wlan0 status 2>/dev/null | grep -q '^w
 # with earbuds connected (2026-09-16). It can also take a far 5 GHz radio: the bench once booted onto one
 # at -70 dBm, took 70 s to get a lease and ran at 20-40 Mbit/s, next to a -34 dBm 2.4 GHz radio.
 #
-# Called by the keeper every minute. A 5 GHz radio at T5_5G_MIN dBm or better is strong: the link moves
-# to the strongest one when it is on 2.4 GHz or on a weak 5 GHz radio. With no strong 5 GHz radio, a
-# weak 5 GHz link moves to 2.4 GHz when that is T5_2G_GAIN dB stronger and at T5_2G_MIN or better. Until
-# the link is on a strong 5 GHz radio it keeps scanning, every five minutes, so a 5 GHz radio that comes
-# back (or was never listed: a connected supplicant stops scanning) is found. A move pins the running
-# supplicant to the chosen channel, nothing is saved; if it does not associate there within 30 s it
-# goes back to every band and leaves it for 30 minutes.
+# Called by the keeper every minute. A healthy 2.4 GHz link (T5_2G_KEEP_MIN, -65 dBm by default) is
+# left alone: changing bands costs a live connection, and some otherwise usable 5 GHz radios reject
+# this hardware. A weaker 2.4 GHz link may move to a 5 GHz radio at T5_5G_MIN dBm or better. With no
+# strong 5 GHz radio, a weak 5 GHz link moves to 2.4 GHz when that is T5_2G_GAIN dB stronger and at
+# T5_2G_MIN or better. Until the link is healthy it keeps scanning, every five minutes, so a better
+# radio that comes back (or was never listed: a connected supplicant stops scanning) is found. A move
+# pins the running supplicant to the chosen channel, nothing is saved; if it does not associate there
+# within 30 s it goes back to every band and leaves it for 30 minutes.
 #
 # A pin outlives the channel it was made for: a router on automatic channels moves its 5 GHz radio
 # (radar on a DFS channel, a channel scan), and a supplicant pinned to the old channel never finds it
 # again (#111). So once the link has been gone at two checks in a row, the pin comes off and the
 # supplicant looks on every band again. A link on another channel than the pin's is one the pin no
 # longer holds: a network joined or forgotten since reloads the supplicant without it.
+t5_wifi_2g_healthy() {
+	[ "$1" -lt 4000 ] && [ "$2" -ge "${T5_2G_KEEP_MIN:--65}" ]
+}
+
 t5_wifi_prefer5() {
 	w="wpa_cli -p /run/wpa -i wlan0"
-	pin=/run/techo5/prefer5-pin
+	state=${T5_PREFER5_RUNTIME_DIR:-/run/techo5}
+	pin=$state/prefer5-pin
 	if [ -s $pin ]; then
 		if t5_wifi_joined; then
 			rm -f $pin.miss
@@ -496,9 +502,12 @@ t5_wifi_prefer5() {
 	strong=${T5_5G_MIN:--65}
 	# On a strong 5 GHz radio already: nothing to look for.
 	[ "$freq" -gt 4000 ] && [ "$sig" -ge "$strong" ] && return 0
+	# A live 2.4 GHz connection with enough signal is already good. Do not tear it down merely to
+	# chase a faster band: if that radio refuses this device, every retry flashes the offline screen.
+	t5_wifi_2g_healthy "$freq" "$sig" && return 0
 	now=$(cut -d. -f1 /proc/uptime)
-	mkdir -p /run/techo5
-	[ "$now" -ge "$(cat /run/techo5/prefer5-after 2>/dev/null || echo 0)" ] || return 0
+	mkdir -p "$state"
+	[ "$now" -ge "$(cat "$state/prefer5-after" 2>/dev/null || echo 0)" ] || return 0
 	id=$($w list_networks 2>/dev/null | awk -F'\t' 'NR>1 && $4 ~ /CURRENT/ {print $1}')
 	ssid=$($w status 2>/dev/null | sed -n 's/^ssid=//p')
 	[ -n "$id" ] && [ -n "$ssid" ] || return 0
@@ -510,9 +519,9 @@ t5_wifi_prefer5() {
 	sig2=${best2%% *}; f2=${best2##* }
 
 	# Keep looking: the list ages out, and radios come and go.
-	if [ "$now" -ge "$(cat /run/techo5/prefer5-scan 2>/dev/null || echo 0)" ]; then
+	if [ "$now" -ge "$(cat "$state/prefer5-scan" 2>/dev/null || echo 0)" ]; then
 		$w scan >/dev/null 2>&1
-		echo $((now + 300)) > /run/techo5/prefer5-scan
+		echo $((now + 300)) > "$state/prefer5-scan"
 	fi
 
 	target=
@@ -543,7 +552,7 @@ t5_wifi_prefer5() {
 	$w set_network "$id" freq_list "" >/dev/null 2>&1
 	$w reassociate >/dev/null 2>&1
 	rm -f $pin $pin.miss
-	echo $((now + 1800)) > /run/techo5/prefer5-after
+	echo $((now + 1800)) > "$state/prefer5-after"
 }
 
 # t5_ntp_peers: the time servers, as ntpd's -p arguments. Several: busybox ntpd
