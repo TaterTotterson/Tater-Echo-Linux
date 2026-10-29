@@ -17,9 +17,10 @@
 # radar_evt, radar_min_evt). The fragment and the patches below are the same for both boards.
 #
 # Amazon's tarball only carries the files their build compiles, so net/bluetooth,
-# drivers/bluetooth and include/net/bluetooth are missing. They come from upstream
-# linux-3.18.19, only where Amazon's tree has no file (the Kconfig files it does have are
-# identical to upstream's).
+# drivers/bluetooth, include/net/bluetooth, and the USB networking sources used
+# by Tater are missing. They come from upstream linux-3.18.19, only where
+# Amazon's tree has no file (the Kconfig files it does have are identical to
+# upstream's).
 #
 # 3.18.19's Bluetooth code predates years of fixes, and this is an always-on speaker running
 # bluetoothd, so tools/linux/kernel-patches/NNNN-*.patch backports the remotely reachable ones
@@ -98,7 +99,8 @@ LNX_URL=https://cdn.kernel.org/pub/linux/kernel/v3.x/linux-3.18.19.tar.xz
 LNX_SHA=3d80d3b8d98c3141d9e26f6c25d73575d688f1c1651b8076f0f2bfd76325b7c9
 TC_REPO=https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/arm/arm-eabi-4.8
 # Fragments applied after the unit's config, in order. kernel-bt.fragment is the Bluetooth set;
-# kernel-usbnet.fragment (present) adds USB host mode (/proc/mchange) and the ethernet MII core.
+# kernel-usbnet.fragment (present) adds USB host mode (/proc/mchange), the
+# Ethernet MII/usbnet core, and the built-in RTL8152 driver.
 FRAGMENTS=("$HERE/kernel-bt.fragment")
 [ ! -f "$HERE/kernel-usbnet.fragment" ] || FRAGMENTS+=("$HERE/kernel-usbnet.fragment")
 
@@ -155,14 +157,16 @@ if [ -z "$STOCK" ]; then
 	# Bluetooth files Amazon's GPL tarball omits.
 	tar -xJf "$DL/${LNX_URL##*/}" -C "$WORK" linux-3.18.19/net/bluetooth linux-3.18.19/drivers/bluetooth \
 		linux-3.18.19/include/net/bluetooth
-	# USB Ethernet: the MII core and usbnet/cdc_ether that Amazon's build never compiled,
-	# needed for the Realtek RTL8152 CDC-ECM adapter (kernel-usbnet.fragment). USB announce
+	# USB Ethernet: the MII core, usbnet/cdc_ether, and r8152 that Amazon's build
+	# never compiled. The generic class driver remains available, while upstream's
+	# CDC blacklist leaves 0bda:8152 to the built-in vendor driver. USB announce
 	# needs no graft: Amazon's own hub.c carries it behind CONFIG_USB_ANNOUNCE_NEW_DEVICES.
 	tar -xJf "$DL/${LNX_URL##*/}" -C "$WORK" linux-3.18.19/drivers/net/mii.c \
 		linux-3.18.19/drivers/net/usb/usbnet.c linux-3.18.19/drivers/net/usb/cdc_ether.c \
+		linux-3.18.19/drivers/net/usb/r8152.c \
 		linux-3.18.19/include/linux/usb/usbnet.h
 	for f in drivers/net/mii.c drivers/net/usb/usbnet.c drivers/net/usb/cdc_ether.c \
-		include/linux/usb/usbnet.h; do
+		drivers/net/usb/r8152.c include/linux/usb/usbnet.h; do
 		if [ -e "$SRC/$f" ]; then
 			cmp -s "$SRC/$f" "$WORK/linux-3.18.19/$f" || echo "note: Amazon's $f differs from upstream; kept Amazon's"
 		else

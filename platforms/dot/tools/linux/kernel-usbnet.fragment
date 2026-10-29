@@ -1,8 +1,9 @@
 # kernel-usbnet.fragment — what the Dot's kernel additionally turns on for USB Ethernet on
 # the micro-USB port. Applied by build-kernel.sh after kernel-bt.fragment; every other
-# option stays as Amazon built it. The adapter is a Realtek RTL8152 in CDC-ECM mode
-# (0bda:8152, config 2 — verified by descriptor dump 2026-10-25; see the
-# Tater-Echo-Firmware docs/biscuit-usb-ethernet.md record).
+# option stays as Amazon built it. The intended adapter is a Realtek RTL8152
+# (0bda:8152, bcdDevice 0x0200). Hardware testing on 2026-10-29 proved that its
+# advertised CDC-ECM configuration enumerates but cannot transmit on Biscuit's
+# 3.18 MUSB path, so the in-kernel Realtek driver owns it instead.
 #
 # CONFIG_CMD_MODE_CHANGE enables Amazon's own forced-mode switch, /proc/mchange. With it,
 # "echo host > /proc/mchange" runs MediaTek's full host-entry sequence without needing the
@@ -18,11 +19,12 @@ CONFIG_CMD_MODE_CHANGE=y
 # usbcore announces every new USB device (descriptors, chosen config) in dmesg;
 # Linux 3.18 keeps this code in Amazon's existing drivers/usb/core/hub.c.
 CONFIG_USB_ANNOUNCE_NEW_DEVICES=y
-# CDC-ECM, built in so the rootfs carries no .ko and insmod ordering is moot.
-# usbnet selects MII; CDCETHER depends on usbnet. The files are grafted from
-# upstream linux-3.18.19 by build-kernel.sh (Amazon's tarball omits them). The
-# ASIX net drivers must stay OFF: they "default y" and select PHYLIB, and
-# Amazon's tree has no drivers/net/phy.
+# Keep generic CDC-ECM for genuinely class-compliant adapters. usbnet selects
+# MII; CDCETHER depends on usbnet. The files are grafted from upstream
+# linux-3.18.19 by build-kernel.sh (Amazon's tarball omits them). The upstream
+# RTL8152 blacklist entry remains in cdc_ether so r8152 owns 0bda:8152 without
+# a probe race. The ASIX net drivers must stay OFF: they "default y" and select
+# PHYLIB, and Amazon's tree has no drivers/net/phy.
 CONFIG_MII=y
 CONFIG_USB_USBNET=y
 CONFIG_USB_NET_CDCETHER=y
@@ -53,8 +55,8 @@ CONFIG_USB_NET_CDCETHER=y
 # CONFIG_USB_NET_CDC_MBIM is not set
 # CONFIG_USB_NET_QMI_WWAN is not set
 # CONFIG_USB_NET_HUAWEI_CDC_NCM is not set
-# The verified configuration is CDC-ECM. Do not build the unused vendor-mode
-# driver or ship an untracked module beside the kernel.
-# CONFIG_USB_RTL8152 is not set
+# Built in so the adapter is usable before the rootfs is selected and no loose
+# kernel module has to match the unit-specific recovery kernel.
+CONFIG_USB_RTL8152=y
 # (GL6200A/KAWETH/SIERRA_NET and friends do not exist as symbols in Amazon's
 # trimmed usb20 Kconfig; the fragment check proved that on the first build.)

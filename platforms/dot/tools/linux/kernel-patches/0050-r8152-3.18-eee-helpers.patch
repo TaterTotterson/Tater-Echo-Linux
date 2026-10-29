@@ -1,0 +1,56 @@
+# 0050-r8152-3.18-eee-helpers.patch — Tater USB-Ethernet work (2026-10-29)
+#
+# Not a CVE backport: a Tater port. The built-in CONFIG_USB_RTL8152 driver for
+# Biscuit and Radar calls EEE conversion helpers that this 3.18 tree lacks.
+# Add byte-equivalent upstream helpers plus the version guard. r8152.c is
+# grafted from upstream linux-3.18.19 by build-kernel.sh, so this applies on top
+# of that exact source.
+--- a/drivers/net/usb/r8152.c
++++ b/drivers/net/usb/r8152.c
+@@ -24,6 +24,47 @@
+ #include <net/ip6_checksum.h>
+ #include <uapi/linux/mdio.h>
+ #include <linux/mdio.h>
++#include <linux/version.h>
++
++/* Tater 3.18 port: these EEE converters are absent from the vendor tree. */
++#if KERNEL_VERSION(4, 2, 0) > LINUX_VERSION_CODE
++static inline u32 mmd_eee_cap_to_ethtool_sup_t(u16 eee_cap)
++{
++	u32 cap = 0;
++
++	if (eee_cap & MDIO_EEE_100TX)
++		cap |= SUPPORTED_100baseT_Full;
++	if (eee_cap & MDIO_EEE_1000T)
++		cap |= SUPPORTED_1000baseT_Full;
++
++	return cap;
++}
++
++static inline u32 mmd_eee_adv_to_ethtool_adv_t(u16 eee_adv)
++{
++	u32 adv = 0;
++
++	if (eee_adv & MDIO_EEE_100TX)
++		adv |= ADVERTISED_100baseT_Full;
++	if (eee_adv & MDIO_EEE_1000T)
++		adv |= ADVERTISED_1000baseT_Full;
++
++	return adv;
++}
++
++static inline u16 ethtool_adv_to_mmd_eee_adv_t(u32 eth_adv)
++{
++	u16 mmd_adv = 0;
++
++	if (eth_adv & SUPPORTED_100baseT_Full)
++		mmd_adv |= MDIO_EEE_100TX;
++	if (eth_adv & SUPPORTED_1000baseT_Full)
++		mmd_adv |= MDIO_EEE_1000T;
++
++	return mmd_adv;
++}
++#endif
+ 
+ /* Version Information */
+ #define DRIVER_VERSION "v1.07.0 (2014/10/09)"

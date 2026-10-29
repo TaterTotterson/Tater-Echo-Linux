@@ -30,9 +30,21 @@ def require(path: Path, values: tuple[str, ...]) -> None:
 def main() -> int:
     try:
         dot = (ROOT / "platforms/dot/tools/linux/kernel-usbnet.fragment").read_text(encoding="utf-8")
-        for value in ("CONFIG_CMD_MODE_CHANGE=y", "CONFIG_MII=y", "CONFIG_USB_USBNET=y", "CONFIG_USB_NET_CDCETHER=y"):
+        for value in (
+            "CONFIG_CMD_MODE_CHANGE=y",
+            "CONFIG_MII=y",
+            "CONFIG_USB_USBNET=y",
+            "CONFIG_USB_NET_CDCETHER=y",
+            "CONFIG_USB_RTL8152=y",
+        ):
             if value not in dot.splitlines():
                 raise ValueError(f"Dot USB fragment is missing {value}")
+        dot_build = (ROOT / "platforms/dot/tools/linux/build-kernel.sh").read_text(encoding="utf-8")
+        if dot_build.count("linux-3.18.19/drivers/net/usb/r8152.c") < 1:
+            raise ValueError("Dot kernel build does not graft the pinned RTL8152 driver")
+        dot_patch = ROOT / "platforms/dot/tools/linux/kernel-patches/0050-r8152-3.18-eee-helpers.patch"
+        if not dot_patch.is_file():
+            raise ValueError("Dot kernel build is missing the RTL8152 3.18 compatibility patch")
 
         require(ROOT / "platforms/show/docs/dumps/cronos-lineage-kernel-4.9.337.config", REQUIRED_49_RTL8152)
         require(ROOT / "platforms/spot/docs/dumps/rook-lineage-kernel-4.9.337.config", REQUIRED_49)
@@ -74,7 +86,7 @@ def main() -> int:
         return 1
 
     print("static USB Ethernet audit passed")
-    print("  Biscuit/Radar: explicit MediaTek role control and usbnet/CDC-ECM present")
+    print("  Biscuit/Radar: MediaTek role control, usbnet/CDC-ECM, and built-in RTL8152 present")
     print("  Checkers/Crown: RTL8152 and usbnet prerequisites present; role/VBUS remains unqualified")
     print("  Athena: RTL8152 and hardware-driven OTG role switching present; adapter validation remains")
     print("  Rook: reproducible build enables RTL8152 and bounded /proc/mchange role switching")

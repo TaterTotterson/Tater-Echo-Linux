@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     env:
-      TATER_DOT_PLATFORM_COMMIT: d5867a594f1707964f2ee58fbb773da522a3a6cd
+      TATER_DOT_PLATFORM_COMMIT: ${{ github.sha }}
     strategy:
       fail-fast: false
       matrix:
@@ -23,7 +23,7 @@ jobs:
       - name: Checkout pinned Dot platform
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          ref: d5867a594f1707964f2ee58fbb773da522a3a6cd
+          ref: ${{ github.sha }}
           path: dot-platform
           fetch-depth: 1
       - name: Build target kernel
