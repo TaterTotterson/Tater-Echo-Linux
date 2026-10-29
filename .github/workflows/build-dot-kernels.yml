@@ -20,11 +20,10 @@ jobs:
           - biscuit
           - radar
     steps:
-      - name: Checkout pinned Dot platform
+      - name: Checkout Tater Echo Linux
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ github.sha }}
-          path: dot-platform
           fetch-depth: 1
       - name: Build target kernel
         shell: bash
@@ -34,10 +33,10 @@ jobs:
           TOOLCHAIN: /tmp/tater-toolchain/arm-eabi-4.8
         run: |
           set -euo pipefail
-          test "$(git -C dot-platform rev-parse HEAD)" = "$TATER_DOT_PLATFORM_COMMIT"
+          test "$(git rev-parse HEAD)" = "$TATER_DOT_PLATFORM_COMMIT"
           out="$PWD/dist/$TARGET"
           mkdir -p "$out"
-          bash dot-platform/tools/linux/build-kernel.sh --board "$TARGET" -o "$out"
+          bash platforms/dot/tools/linux/build-kernel.sh --board "$TARGET" -o "$out"
           mv "$out/zImage-dtb" "$out/tater-echo-$TARGET-kernel.zImage-dtb"
           mv "$out/zImage-dtb.config" "$out/tater-echo-$TARGET-kernel.config"
           mv "$out/zImage-dtb.System.map" "$out/tater-echo-$TARGET-kernel.System.map"
