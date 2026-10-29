@@ -1,8 +1,11 @@
 """The Dot's signed release and the boot image built from it, shared by install-dot.py and update-boot.py."""
 import gzip
+import hashlib
 import io
+import lzma
 import os
 import re
+import struct
 import subprocess
 import sys
 import tarfile
@@ -152,6 +155,218 @@ def with_member(apk, member, path, out):
         fail('%s has no %s to replace' % (os.path.basename(apk), member))
     with open(out, 'wb') as f:
         f.write(gzip.compress(buf.getvalue()))
+
+
+TWRP_HANDOFF_SERVICE = b'''\n+# Tater Linux runs from this board's recovery partition.  A Volume-Up handoff
+# boots this TWRP image from RAM, then puts Linux back before the user leaves
+# TWRP so the following reboot behaves like the other Echo satellites.
+service tater-restore-linux /sbin/sh /sbin/tater-restore-linux.sh
+    user root
+    group root
+    seclabel u:r:recovery:s0
+    oneshot
+'''
+
+TWRP_HANDOFF_SCRIPT = b'''#!/sbin/sh
+PATH=/sbin:/system/bin
+export PATH
+TMP=/tmp/tater-twrp-handoff.log
+S=/cache/techo5
+LINUX=$S/linux.img
+REC=/dev/block/mmcblk0p12
+MISC=/dev/block/mmcblk0p8
+exec >$TMP 2>&1
+echo "tater-twrp-handoff: waiting for cache"
+
+n=0
+while [ $n -lt 60 ]; do
+    if grep -q ' /cache ' /proc/mounts; then break; fi
+    mkdir -p /cache
+    mount -t ext4 /dev/block/mmcblk0p15 /cache 2>/dev/null || true
+    sleep 1
+    n=$((n + 1))
+done
+if ! grep -q ' /cache ' /proc/mounts; then
+    echo "tater-twrp-handoff: cache did not mount; leaving TWRP installed"
+    exit 1
+fi
+cp $TMP $S/twrp-handoff.log 2>/dev/null || true
+
+restore_twrp() {
+    image=$S/twrp-handoff.img
+    [ -s "$image" ] || image=$S/twrp.img
+    [ -s "$image" ] || return 1
+    length=$(wc -c < "$image")
+    wanted=$(md5sum "$image" | cut -d' ' -f1)
+    dd if="$image" of=$REC bs=1048576 2>/dev/null
+    sync
+    actual=$(head -c "$length" $REC | md5sum | cut -d' ' -f1)
+    [ "$actual" = "$wanted" ]
+}
+
+if [ ! -s "$LINUX" ] || [ "$(head -c 8 "$LINUX")" != ANDROID! ]; then
+    echo "tater-twrp-handoff: no valid Linux image; leaving TWRP installed"
+    exit 1
+fi
+length=$(wc -c < "$LINUX")
+wanted=$(md5sum "$LINUX" | cut -d' ' -f1)
+echo "tater-twrp-handoff: restoring Linux ($length bytes)"
+dd if="$LINUX" of=$REC bs=1048576 2>/dev/null
+sync
+actual=$(head -c "$length" $REC | md5sum | cut -d' ' -f1)
+if [ "$actual" != "$wanted" ]; then
+    echo "tater-twrp-handoff: Linux read-back failed; restoring TWRP"
+    restore_twrp || echo "tater-twrp-handoff: WARNING: TWRP read-back also failed"
+    exit 1
+fi
+
+printf 'boot-recovery' | dd of=$MISC bs=32 count=1 conv=notrunc,sync 2>/dev/null
+printf 'TECHO5-TRIES 0 twrp handoff\n' | dd of=$MISC bs=512 seek=14 count=1 conv=notrunc,sync 2>/dev/null
+sync
+echo "tater-twrp-handoff: Linux restored and verified; TWRP remains active in RAM"
+cp $TMP $S/twrp-handoff.log 2>/dev/null || true
+: > $S/twrp-handoff.ready
+exit 0
+'''
+
+
+def _pad4(value):
+    return (value + 3) & ~3
+
+
+def _newc_record(magic, fields, name, data):
+    """Return one newc record, preserving metadata supplied by fields."""
+    name_bytes = name.encode() + b'\0'
+    values = list(fields)
+    values[6] = len(data)
+    values[11] = len(name_bytes)
+    values[12] = sum(data) & 0xffffffff if magic == b'070702' else 0
+    header = magic + b''.join(b'%08X' % value for value in values)
+    record = header + name_bytes
+    record += b'\0' * (_pad4(len(record)) - len(record))
+    record += data
+    record += b'\0' * (_pad4(len(record)) - len(record))
+    return record
+
+
+def _patch_newc(raw, replacements, additions):
+    """Replace and append regular files in a single newc initramfs."""
+    out = bytearray()
+    seen = set()
+    offset = 0
+    next_inode = 0x7a7000
+    while offset + 110 <= len(raw):
+        magic = raw[offset:offset + 6]
+        if magic not in (b'070701', b'070702'):
+            fail('TWRP ramdisk is not a newc archive at byte %d' % offset)
+        fields = [int(raw[offset + 6 + index * 8:offset + 14 + index * 8], 16)
+                  for index in range(13)]
+        name_size, file_size = fields[11], fields[6]
+        name_start = offset + 110
+        name_end = name_start + name_size
+        if name_end > len(raw) or not raw[name_end - 1:name_end] == b'\0':
+            fail('TWRP ramdisk has a damaged newc filename')
+        name = raw[name_start:name_end - 1].decode()
+        data_start = _pad4(name_end)
+        data_end = data_start + file_size
+        if data_end > len(raw):
+            fail('TWRP ramdisk has a truncated %s entry' % name)
+        data = raw[data_start:data_end]
+        next_offset = _pad4(data_end)
+
+        if name == 'TRAILER!!!':
+            for added_name, (mode, added_data) in additions.items():
+                if added_name in seen:
+                    fail('TWRP ramdisk already contains %s' % added_name)
+                added_fields = [next_inode, 0o100000 | mode, 0, 0, 1, 0,
+                                len(added_data), 0, 0, 0, 0, 0, 0]
+                out.extend(_newc_record(b'070701', added_fields, added_name, added_data))
+                next_inode += 1
+            out.extend(_newc_record(magic, fields, name, data))
+            missing = set(replacements) - seen
+            if missing:
+                fail('TWRP ramdisk is missing %s' % ', '.join(sorted(missing)))
+            return bytes(out)
+
+        seen.add(name)
+        if name in replacements:
+            data = replacements[name](data)
+        out.extend(_newc_record(magic, fields, name, data))
+        offset = next_offset
+    fail('TWRP ramdisk has no newc trailer')
+
+
+def _read_boot_image(path):
+    with open(path, 'rb') as source:
+        image = source.read()
+    if image[:8] != b'ANDROID!':
+        fail('%s is not an Android boot image' % path)
+    kernel_size, _, ramdisk_size, _, second_size, _, _, page_size, header_version = struct.unpack(
+        '<9I', image[8:44])
+    if header_version != 0 or second_size:
+        fail('%s uses an unsupported Android boot image header' % path)
+    rounded = lambda value: (value + page_size - 1) // page_size * page_size
+    header = bytearray(image[:page_size])
+    kernel = image[page_size:page_size + kernel_size]
+    ramdisk_start = page_size + rounded(kernel_size)
+    ramdisk = image[ramdisk_start:ramdisk_start + ramdisk_size]
+    if len(kernel) != kernel_size or len(ramdisk) != ramdisk_size:
+        fail('%s is a truncated Android boot image' % path)
+    return header, kernel, ramdisk, page_size
+
+
+def _write_boot_image(header, kernel, ramdisk, page_size, out):
+    rounded = lambda value: (value + page_size - 1) // page_size * page_size
+    struct.pack_into('<I', header, 8, len(kernel))
+    struct.pack_into('<I', header, 16, len(ramdisk))
+    struct.pack_into('<I', header, 24, 0)
+    digest = hashlib.sha1()
+    for blob in (kernel, ramdisk, b'', b''):
+        digest.update(blob)
+        digest.update(struct.pack('<I', len(blob)))
+    header[576:608] = digest.digest() + b'\0' * 12
+    image = bytes(header)
+    image += kernel + b'\0' * (rounded(len(kernel)) - len(kernel))
+    image += ramdisk + b'\0' * (rounded(len(ramdisk)) - len(ramdisk))
+    with open(out, 'wb') as destination:
+        destination.write(image)
+    return len(image)
+
+
+def build_twrp_handoff_image(twrp, out, max_size=16 * 1024 * 1024):
+    """Build TWRP that restores the Dot 2 Linux recovery image while running.
+
+    Biscuit and Radar have only one recovery partition.  Their bootloader's
+    Volume-Up route enters that partition, so Linux temporarily replaces
+    itself with this unit's own TWRP.  The added TWRP service verifies and puts
+    Linux back while TWRP continues running from RAM; the next boot is Linux.
+    """
+    header, kernel, compressed, page_size = _read_boot_image(twrp)
+    try:
+        if compressed.startswith(b'\x1f\x8b'):
+            raw = gzip.decompress(compressed)
+        else:
+            raw = lzma.decompress(compressed, format=lzma.FORMAT_AUTO)
+    except (OSError, lzma.LZMAError) as error:
+        fail('cannot decompress the TWRP ramdisk: %s' % error)
+
+    def add_service(contents):
+        if b'service tater-restore-linux ' in contents:
+            fail('TWRP ramdisk already contains the Tater handoff service')
+        if not contents.endswith(b'\n'):
+            contents += b'\n'
+        return contents + TWRP_HANDOFF_SERVICE
+
+    patched = _patch_newc(
+        raw,
+        {'init.recovery.mt8163.rc': add_service},
+        {'sbin/tater-restore-linux.sh': (0o755, TWRP_HANDOFF_SCRIPT)},
+    )
+    ramdisk = lzma.compress(patched, format=lzma.FORMAT_ALONE, preset=9)
+    size = _write_boot_image(header, kernel, ramdisk, page_size, out)
+    if size > max_size:
+        fail('TWRP handoff image does not fit the recovery partition')
+    return size
 
 
 def build_boot_image(recovery, out, alpine_tgz, busybox, wmtup, apks, kernel=None, board='biscuit', wpa_supplicant=None):

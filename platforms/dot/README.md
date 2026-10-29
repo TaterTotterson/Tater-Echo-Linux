@@ -225,8 +225,12 @@ wires can come off afterward. Note which pad is which first.
 Stock fastboot and TWRP both show white, so go by the step you're on, not only the color. Volume down
 at power-on gives amonet's fastboot (a rainbow ring). It doesn't support `fastboot boot`, and
 `fastboot reboot` from it returns to Fire OS. Until TECHO5 is installed, holding **+** at power-on gets you back to TWRP.
-Afterward TECHO5 sits in the recovery partition where TWRP was: `to-twrp` puts TWRP back (Getting
-started, "Going back to TWRP or Fire OS").
+Afterward Tater Linux sits in the recovery partition where TWRP was. The Tater
+factory installer keeps the unit's verified TWRP backup and builds an
+automatic-return handoff from it. Holding Volume Up during early userspace can
+therefore enter TWRP, restore Linux to recovery while TWRP runs from RAM, and
+return to Linux on the following reboot. `to-twrp --yes` remains the explicit
+manual route, with `back-to-linux.sh` as its way back.
 
 **Back up.** The installer backs up every boot partition itself and checks each copy by md5. A full
 copy of the eMMC from TWRP is worth having too: the whole disk is about 3.9 GB and took about 30

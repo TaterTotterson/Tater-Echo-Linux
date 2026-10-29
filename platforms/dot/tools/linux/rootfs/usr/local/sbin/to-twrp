@@ -16,22 +16,27 @@ die() { echo "to-twrp: $*" >&2; exit 1; }
 BACK=/cache/techo5/back-to-linux.sh
 [ -e /data/techo5-store/techo5/back-to-linux.sh ] && BACK=/data/techo5-store/techo5/back-to-linux.sh
 
-[ -s $S/twrp.img ] || die "no TWRP copy in $S (the installer puts one there)"
-[ "$(head -c 8 $S/twrp.img)" = "ANDROID!" ] || die "$S/twrp.img is not a boot image"
+IMAGE=$S/twrp.img
+if [ "$1" = --handoff ]; then
+	IMAGE=$S/twrp-handoff.img
+	[ -s $IMAGE ] || die "no automatic-return TWRP image in $S; use Tater Recovery or run the current factory installer"
+fi
+[ -s $IMAGE ] || die "no TWRP copy in $S (the installer puts one there)"
+[ "$(head -c 8 $IMAGE)" = "ANDROID!" ] || die "$IMAGE is not a boot image"
 [ -b $REC ] || mknod -m 600 $REC b 179 12
 [ -b $MISC ] || mknod -m 600 $MISC b 179 8
 
-if [ "$1" != --yes ]; then
+if [ "$1" != --yes ] && [ "$1" != --handoff ]; then
 	echo "This replaces Linux in the recovery partition with TWRP and reboots into TWRP."
 	echo "Back afterwards: adb shell sh $BACK (from TWRP)."
 	echo "Run 'to-twrp --yes' to go ahead."
 	exit 1
 fi
 
-len=$(stat -c %s $S/twrp.img)
-want=$(md5sum < $S/twrp.img | cut -d' ' -f1)
+len=$(stat -c %s $IMAGE)
+want=$(md5sum < $IMAGE | cut -d' ' -f1)
 echo "to-twrp: writing TWRP ($len bytes) to the recovery partition"
-dd if=$S/twrp.img of=$REC bs=1048576 2>/dev/null
+dd if=$IMAGE of=$REC bs=1048576 2>/dev/null
 sync
 got=$(head -c $len $REC | md5sum | cut -d' ' -f1)
 if [ "$got" != "$want" ]; then

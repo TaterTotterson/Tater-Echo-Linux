@@ -244,7 +244,12 @@ As built, differing from the original plan:
   store.
   - `to-twrp --yes` writes TWRP to recovery, checks it, and reboots into it.
   - `adb shell sh /cache/techo5/back-to-linux.sh` from TWRP restores Linux.
-  - Both verified on the bench unit, with md5s matching the backups.
+  - The Tater factory wrapper can also build `twrp-handoff.img` from that same
+    device-specific backup. `to-twrp --handoff` requires it; its added TWRP
+    service checks and restores Linux while TWRP continues running from RAM.
+  - The manual `to-twrp`/`back-to-linux.sh` round trip is bench-verified, with
+    md5s matching the backups. The automatic handoff keeps the same read-back
+    checks and still requires its hardware validation before release.
 - **Maintenance:** `touch /run/techo5/hold; killall echod` keeps the daemon down, freeing the mics
   and ring for `echod tools`.
 - **LED whine:** absent under Linux; see [microphones.md](microphones.md).
