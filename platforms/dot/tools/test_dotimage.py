@@ -4,6 +4,7 @@ import importlib.util
 import lzma
 from pathlib import Path
 import struct
+import subprocess
 import sys
 import tempfile
 import types
@@ -64,8 +65,16 @@ class TwrpHandoffImageTests(unittest.TestCase):
             raw = lzma.decompress(compressed, format=lzma.FORMAT_AUTO)
             self.assertEqual(raw.count(b"service tater-restore-linux "), 1)
             self.assertEqual(raw.count(b"tater-twrp-handoff: restoring Linux"), 1)
+            self.assertEqual(raw.count(b"TWRP cleared the boot target; re-arming Linux"), 1)
+            self.assertEqual(raw.count(b"while :; do"), 1)
             names = mkimage.verify_cpio(raw)
             self.assertIn("sbin/tater-restore-linux.sh", names)
+
+    def test_handoff_script_has_valid_posix_shell_syntax(self) -> None:
+        subprocess.run(
+            ["sh", "-n"], input=dotimage.TWRP_HANDOFF_SCRIPT, check=True,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        )
 
     def test_refuses_to_patch_an_already_patched_image(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

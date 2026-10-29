@@ -220,13 +220,28 @@ if [ "$actual" != "$wanted" ]; then
     exit 1
 fi
 
-printf 'boot-recovery' | dd of=$MISC bs=32 count=1 conv=notrunc,sync 2>/dev/null
-printf 'TECHO5-TRIES 0 twrp handoff\n' | dd of=$MISC bs=512 seek=14 count=1 conv=notrunc,sync 2>/dev/null
-sync
+arm_linux() {
+    printf 'boot-recovery' | dd of=$MISC bs=32 count=1 conv=notrunc,sync 2>/dev/null
+    printf 'TECHO5-TRIES 0 twrp handoff\n' | dd of=$MISC bs=512 seek=14 count=1 conv=notrunc,sync 2>/dev/null
+    sync
+}
+
+arm_linux
 echo "tater-twrp-handoff: Linux restored and verified; TWRP remains active in RAM"
 cp $TMP $S/twrp-handoff.log 2>/dev/null || true
 : > $S/twrp-handoff.ready
-exit 0
+
+# TWRP clears the bootloader message later in its own startup on some Dot
+# builds.  Keep this service alive and re-arm Linux only when that happens.
+# Reads are harmless; the eMMC is written at most once per clear rather than
+# continuously while somebody is using TWRP.
+while :; do
+    sleep 2
+    [ "$(head -c 13 $MISC 2>/dev/null)" = boot-recovery ] && continue
+    echo "tater-twrp-handoff: TWRP cleared the boot target; re-arming Linux"
+    arm_linux
+    cp $TMP $S/twrp-handoff.log 2>/dev/null || true
+done
 '''
 
 
