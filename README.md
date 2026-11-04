@@ -58,3 +58,8 @@ Current Tater platform work:
 - [Satellite baseline provenance](baselines/satellite-baselines-v1.json) for
   Checkers, Crown, Athena, and Rook.
 
+## License and trademarks
+
+This project is licensed under the [MIT License](LICENSE).
+
+The Tater name and logo are governed by the [Tater Trademark Policy](TRADEMARKS.md).
