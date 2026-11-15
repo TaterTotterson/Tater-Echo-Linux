@@ -20,6 +20,7 @@ jobs:
           python3 tools/validate_targets.py
           python3 tools/fetch_baselines.py --check
           python3 tools/audit_usb_ethernet.py
+          python3 -m unittest tools.test_hardware_inputs
       - name: Parse platform build entry points
         shell: bash
         run: |
@@ -35,3 +36,4 @@ jobs:
             tools/validate_targets.py \
             tools/fetch_baselines.py \
             tools/audit_usb_ethernet.py
+          python3 -m py_compile tools/build_hardware_kernel.py tools/build_video_decoder.py tools/prepare_show_hardware_boot.py

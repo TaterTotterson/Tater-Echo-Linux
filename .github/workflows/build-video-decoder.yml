@@ -1,0 +1,28 @@
+name: Build hardware-capable video decoder
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  decoder:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1
+        with:
+          platforms: arm
+      - name: Pull immutable builder
+        run: |
+          builder=$(python3 -c 'import json; print(json.load(open("build-inputs/video-decoder.json"))["builder"])')
+          docker pull --platform linux/arm/v7 "$builder"
+      - name: Build and verify decoder
+        run: python3 tools/build_video_decoder.py --output dist/video-decoder
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: tater-video-decoder-${{ github.sha }}
+          path: dist/video-decoder/
+          if-no-files-found: error

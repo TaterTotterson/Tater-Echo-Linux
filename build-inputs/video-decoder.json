@@ -1,0 +1,12 @@
+{
+  "schema": 1,
+  "version": "8.1.2",
+  "source_url": "https://ffmpeg.org/releases/ffmpeg-8.1.2.tar.xz",
+  "source_sha256": "464beb5e7bf0c311e68b45ae2f04e9cc2af88851abb4082231742a74d97b524c",
+  "builder": "ghcr.io/tatertotterson/tater-echo-firmware-builder@sha256:109fbf681d9f79c25c515ca712141ece671cb85ebcdf5395d4828c85ed94b716",
+  "builder_image_id": "sha256:8f2fba1b9274e512524c572deb4dbb5abd92e15bb88b8620ea1e2cd24fe57a74",
+  "packages": ["openssl-dev=3.3.7-r2", "zlib-dev=1.4-r0", "perl=5.40.4-r0", "pkgconf=2.3.0-r0"],
+  "recipe": "platforms/show/tools/linux/build-ffmpeg.sh",
+  "output_sha256": "770eba6e8f637fc311ea39cc5eaededb1e836604095386ecd7a6c22ba8086c72",
+  "output_size": 4336264
+}

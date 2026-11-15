@@ -1,0 +1,64 @@
+From: Tater Hardware Research <research@invalid>
+Subject: [PATCH] video: mt8163: fix 32-bit display suspend query
+
+The compat handler stores the user's value in a scalar tagged __user and then
+passes that value to the native ioctl as though it were a user pointer. A
+32-bit DISP_IOCTL_GET_IS_DRIVER_SUSPEND therefore always returns -EFAULT.
+
+Allocate a native user-space slot, pass its address to the native handler, and
+copy the result back to the compat caller.
+---
+ .../video/mt8163/videox/compat_mtk_disp_mgr.c | 25 +++++++++++++++++----
+ 1 file changed, 20 insertions(+), 5 deletions(-)
+
+diff --git a/drivers/misc/mediatek/video/mt8163/videox/compat_mtk_disp_mgr.c b/drivers/misc/mediatek/video/mt8163/videox/compat_mtk_disp_mgr.c
+--- a/drivers/misc/mediatek/video/mt8163/videox/compat_mtk_disp_mgr.c
++++ b/drivers/misc/mediatek/video/mt8163/videox/compat_mtk_disp_mgr.c
+@@ -917,23 +917,38 @@
+ int _compat_ioctl_get_is_driver_suspend(struct file *file, unsigned long arg)
+ {
+ 	int ret = 0;
+-	int err = 0;
+-
+ 	compat_uint_t __user *data32;
+-	unsigned int __user data;
++	unsigned int __user *data;
++	unsigned int value;
+ 
+ 	DISPDBG("COMPAT_DISP_IOCTL_GET_INFO\n");
+ 	data32 = compat_ptr(arg);
+-
+-	if (get_user(data, data32)) {
++	data = compat_alloc_user_space(sizeof(*data));
++	if (data == NULL) {
++		DISPERR("compat_alloc_user_space fail!\n");
++		return -EFAULT;
++	}
++
++	if (get_user(value, data32)) {
+ 		DISPERR("compat_get_fps fail!\n");
+-		return err;
++		return -EFAULT;
+ 	}
++	if (put_user(value, data)) {
++		DISPERR("compat_put_suspend fail!\n");
++		return -EFAULT;
++	}
+ 
+ 	ret = file->f_op->unlocked_ioctl(file, DISP_IOCTL_GET_IS_DRIVER_SUSPEND,
+ 					 (unsigned long)data);
+ 
+-	put_user(data, data32);
++	if (get_user(value, data)) {
++		DISPERR("compat_get_suspend fail!\n");
++		return -EFAULT;
++	}
++	if (put_user(value, data32)) {
++		DISPERR("compat_put_suspend32 fail!\n");
++		return -EFAULT;
++	}
+ 	return ret;
+ }
+ 
+-- 
+2.39.5
