@@ -21,6 +21,21 @@ every downloaded artifact digest. A new platform commit is not usable by a
 firmware release until its corresponding board artifact has been built,
 verified, and published.
 
+## Hardware helper source
+
+[Tater Echo Hardware](https://github.com/TaterTotterson/Tater-Echo-Hardware)
+owns the original GPU/codec helpers, hardware diagnostics and research tooling.
+This repository owns platform/kernel changes and the Show/Rook camera adapters;
+Tater Echo Firmware owns the source/content locks and final application/system
+packaging. Retain the separate source pins and per-target qualification rather
+than building unreviewed main-branch helpers during a release.
+
+Public source publication must not include proprietary runtime libraries,
+firmware, calibration, device backups or owner data. Hardware helper builds
+that require owner-local link inputs do not grant redistribution rights to
+those inputs. Publish only audited open-source artifacts and their applicable
+license/source notices; keep runtime provisioning separate.
+
 ## Migration gates
 
 1. Preserve the currently working upstream input as a hash-pinned baseline.

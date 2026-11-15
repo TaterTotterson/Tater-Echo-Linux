@@ -45,11 +45,20 @@ done
 # Both are read after the cd into the kernel tree, so a path relative to here is made absolute first.
 [ -z "$PATCHES" ] || PATCHES=$(realpath "$PATCHES")
 [ -z "$OUT" ] || OUT=$(realpath -m "$OUT")
+SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 
 cd "$KSRC"
-if [ -n "$PATCHES" ]; then
-	set -- "$PATCHES"/*.patch
-	[ -e "$1" ] || { echo "no patches in $PATCHES" >&2; exit 1; }
+if [ -n "$PATCHES" ] || [ "$DEFCONFIG" = checkers_defconfig ] || [ "$DEFCONFIG" = cronos_defconfig ]; then
+	set --
+	if [ -n "$PATCHES" ]; then
+		set -- "$PATCHES"/*.patch
+		[ -e "$1" ] || { echo "no patches in $PATCHES" >&2; exit 1; }
+	fi
+	# Both Show 5 generations independently confirmed the missing CCF handles
+	# and the corrected 24 MHz sensor clock. Crown remains unqualified.
+	if [ "$DEFCONFIG" = checkers_defconfig ] || [ "$DEFCONFIG" = cronos_defconfig ]; then
+		set -- "$@" "$SCRIPT_DIR/checkers-patches/0005-camera-clock-handles.patch"
+	fi
 	[ -z "$(git status --porcelain)" ] || { echo "kernel tree is not clean; patches need a clean tree" >&2; exit 1; }
 	# Out again however this ends, so the tree is never left carrying them.
 	trap 'cd "$KSRC" && rm -f .scmversion && git checkout -- . && echo "patches removed"' EXIT

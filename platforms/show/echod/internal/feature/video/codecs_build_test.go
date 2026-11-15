@@ -42,6 +42,16 @@ func TestVideoCodecsMatchArchitecture(t *testing.T) {
 	if !slices.Contains(lists(armv7, "protocol"), "srtp") {
 		t.Error("build-ffmpeg.sh (armv7) does not build in SRTP")
 	}
+	for _, muxer := range []string{"h264", "framecrc"} {
+		if !slices.Contains(lists(armv7, "muxer"), muxer) {
+			t.Errorf("build-ffmpeg.sh (armv7) does not build hardware-decoder muxer %s", muxer)
+		}
+	}
+	for _, filter := range []string{"h264_mp4toannexb", "h264_metadata"} {
+		if !slices.Contains(lists(armv7, "bsf"), filter) {
+			t.Errorf("build-ffmpeg.sh (armv7) does not build hardware-decoder bitstream filter %s", filter)
+		}
+	}
 	// Both under the LGPL only. The aarch64 build runs on a 32-bit userspace, so nothing of it may be
 	// linked from there: it is static.
 	for name, script := range map[string][]byte{"build-ffmpeg.sh": armv7, "build-ffmpeg-arm64.sh": arm64} {

@@ -39,6 +39,10 @@ tested migration.
 
 Tater application code remains in
 [`Tater-Echo-Firmware`](https://github.com/TaterTotterson/Tater-Echo-Firmware).
+Original GPU/video helpers, hardware diagnostics and interface research live in
+[`Tater-Echo-Hardware`](https://github.com/TaterTotterson/Tater-Echo-Hardware).
+The firmware release pipeline pins these inputs independently; publishing a
+platform/helper change does not automatically promote it into installed firmware.
 
 Build and release policy is documented in
 [`docs/releasing.md`](docs/releasing.md). Dot-family kernels can be built on a
@@ -48,6 +52,10 @@ boot inputs are pinned in CI; they must never borrow another board's image.
 
 Current Tater platform work:
 
+- Source-locked Show/Rook camera HTTP adapters, low-resolution Bayer conversion,
+  and the target-gated Checkers/Cronos camera-clock patch. Hardware helper source
+  and public/private runtime boundaries are described in the hardware repository;
+  final board-specific factory/OTA qualification remains a separate release gate.
 - [Biscuit micro-USB Ethernet](docs/biscuit-usb-ethernet.md)
 - [USB Ethernet readiness by satellite](docs/usb-ethernet-readiness.md)
 - Athena's hardware-tested early-Linux Tater splash, which replaces the

@@ -1,0 +1,70 @@
+From: Tater Hardware Research
+Subject: [PATCH] imgsensor: initialize CCF handles independently of always-on camera
+
+Checkers' live DT deliberately omits cmmclk-always-on. The old probe only
+acquired the three CCF handles inside that optional power-on block. The
+normal SET_MCLK_PLL path consequently passed NULL clocks to CCF and silently
+left CAMTG on 26 MHz, giving the userspace divide-by-two sensor clock 13 MHz
+instead of the OV9734's specified 24 MHz.
+
+Acquire handles unconditionally, propagate deferred probe/errors, and do not
+enable camera power or clocks unless the existing property or a real camera
+request asks for them. Propagate clock selection failures instead of reporting
+a successful no-op. No sensor table, privacy GPIO, DT, or module ABI changes.
+
+--- a/drivers/misc/mediatek/imgsensor/src/mt8163/kd_sensorlist.c
++++ b/drivers/misc/mediatek/imgsensor/src/mt8163/kd_sensorlist.c
+@@ -2438,14 +2438,22 @@ static inline int kdSetSensorMclk(int *pBuf)
+ #ifdef MTKCAM_USING_CCF
+ 	PK_DBG("========= MTKCAM_USING_CCF =======\n");
+ 	Check_ccf_clk();
++	if (IS_ERR_OR_NULL(g_camclk_camtg_sel) ||
++	    IS_ERR_OR_NULL(g_camclk_univpll_d26) ||
++	    IS_ERR_OR_NULL(g_camclk_univpll2_d2))
++		return -ENODEV;
+ 	if (pSensorCtrl->on == 1) {
+-		clk_prepare_enable(g_camclk_camtg_sel);
+ 		if (pSensorCtrl->freq == 1 /*CAM_PLL_48_GROUP */)
+-			clk_set_parent(g_camclk_camtg_sel,
++			ret = clk_set_parent(g_camclk_camtg_sel,
+ 				g_camclk_univpll_d26);
+ 		else if (pSensorCtrl->freq == 2 /*CAM_PLL_52_GROUP */)
+-			clk_set_parent(g_camclk_camtg_sel,
++			ret = clk_set_parent(g_camclk_camtg_sel,
+ 				g_camclk_univpll2_d2);
++		else
++			return -EINVAL;
++		if (ret)
++			return ret;
++		ret = clk_prepare_enable(g_camclk_camtg_sel);
+ 	} else {
+ 		clk_disable_unprepare(g_camclk_camtg_sel);
+ 	}
+@@ -3838,6 +3846,18 @@ static int CAMERA_HW_probe(struct platform_device *pdev)
+ 	struct device_node *np;
+ 	int ret = 0;
+ 	adc_pdev = pdev;
++
++#ifdef MTKCAM_USING_CCF
++	/* A normal, privacy-gated camera needs these handles too. Merely
++	 * acquiring them must not enable clocks or power the sensor. */
++	Get_ccf_clk(pdev);
++	if (IS_ERR(g_camclk_camtg_sel))
++		return PTR_ERR(g_camclk_camtg_sel);
++	if (IS_ERR(g_camclk_univpll_d26))
++		return PTR_ERR(g_camclk_univpll_d26);
++	if (IS_ERR(g_camclk_univpll2_d2))
++		return PTR_ERR(g_camclk_univpll2_d2);
++#endif
+ 
+ #ifdef MTKCAM_USING_PWRREG
+ 
+@@ -3867,8 +3887,6 @@ static int CAMERA_HW_probe(struct platform_device *pdev)
+ 		/* end */
+ 
+ 		/* Setup the clock parent for 26MHz parent */
+-		Get_ccf_clk(pdev);
+-		Check_ccf_clk();
+ 
+ 		ret = clk_prepare_enable(g_camclk_camtg_sel);
+ 		if (ret)
