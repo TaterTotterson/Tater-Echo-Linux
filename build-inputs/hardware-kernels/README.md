@@ -42,6 +42,11 @@ and board device trees; no private owner donor is accepted. It checks that the
 baseline device trees retain separate microphone channels. This deliberately
 corrects the old Checkers camera trial's re-enabled `amzn,mic-downmix` property.
 The corrected Checkers candidate needs a new physical voice test before release.
+Its clean raw build also normalizes the default, empty built-in initramfs
+timestamps to the pinned November 12 build time. The older incremental trial
+retained November 11 timestamps in that empty archive. A byte comparison
+isolated the raw-image differences to that archive and its GNU build ID; the
+remaining image bytes and complete module-symbol versions are unchanged.
 Cronos retains its already tested baseline DTBs rather than substituting newly
 compiled ones. Neither command flashes or changes a satellite.
 
@@ -49,3 +54,33 @@ Crown's uninstalled camera-clock experiment is not in these build profiles.
 Athena is a separate mainline platform and must not receive an MT8163 kernel.
 GPLv2 kernel sources/configurations/patches retain their applicable upstream
 license terms; independent helper tooling retains its own source notices.
+
+## Athena mainline/AP inputs
+
+`tools/build_athena_hardware_kernel.py` separately rebuilds Linux 6.18.56,
+the empty-tuning board DTB, the gated SCP modules and both original AP adapters.
+It uses the exact `athena.config`, explicit GCC 13.3 host/target compilers,
+the pinned Hardware source and firmware codec lock, a fresh container and no
+network. The full kernel build and standalone `M=drivers/remoteproc` invocation
+are both intentional: they reproduce the reviewed module metadata as well as
+the code. Every exported binary must match the existing codec/source lock.
+The build never reads or embeds the owner's SCP firmware or speaker tuning.
+
+The native ARM64 development builder identity is
+`sha256:b3c5e4fd26e255937cd4aa2daeb180b631c833d927a71ed6233278646d005253`;
+the Linux source archive SHA-256 is
+`4633bbda2ab95eaf2a7af4041236451d6759c72e6946265531af4b3aacefbf89`.
+Use `--help` for the required source, hardware checkout, codec-lock, builder
+and new output directory arguments. This is not a public registry image URL.
+
+`tools/prepare_athena_hardware_boot.py` then applies the narrowly audited 8 MiB
+codec reservation to the rebuilt empty-tuning DTB. It preserves only the
+existing **public** Athena baseline's redistributable Wi-Fi/BT ramdisk, checks
+the tuning slot is still empty, and reproduces the reviewed `c6f38f2c…`
+template. The public baseline ramdisk's own MediaTek license remains included;
+it is not an owner's private firmware backup. Per-device speaker tuning is
+still filled locally by the existing factory installer. No owner SCP firmware
+or video runtime is redistributed by this boot assembly.
+
+Publishing any input is separate from approving a USB/system migration, OTA,
+reboot, rollback, runtime provisioning or physical voice/video test.

@@ -14,9 +14,9 @@ PROFILES = {
  'checkers': {
   'source_sha256':'4e0b311affbd75d58c64630c235146a5f27edcfcfdac6104e7e7cd4ca86ebe08','strip':1,
   'config_sha256':'93bde8f9783a91ad4e5626030fd81b5f60112903d4466a24d08798c2d9568271',
-  'release':'4.9.337-g8d928c5176cc','localversion':'-g8d928c5176cc',
+  'release':'4.9.337-g8d928c5176cc','localversion':'',
   'user':'root','host':'ce210981830e','timestamp':'Thu Nov 12 14:25:24 UTC 2026','version':'4',
-  'expected_raw_sha256':'758cb695409303453232e4313574af005a670619007df47c479afb473344e957',
+  'expected_raw_sha256':'f5fea128d8f134a2adba04a99d30e3ad9734c5321ea0b333597ce27a7bc9fbce',
   'patches':[f'platforms/show/tools/linux/patches/checkers-000{n}-{name}.patch' for n,name in (
    (1,'mic-enable-on-capture'),(2,'camera-follows-the-latch'),(3,'mute-button-follows-a-short-press'),(4,'jack-plugged-in-at-boot'))]
    +['build-inputs/hardware-kernels/checkers-display-compat.patch','platforms/show/tools/linux/checkers-patches/0005-camera-clock-handles.patch'],
@@ -30,7 +30,8 @@ PROFILES = {
   'patches':['platforms/show/tools/linux/checkers-patches/0005-camera-clock-handles.patch'],
  },
  'rook': {
-  'source_sha256':'10769f2501d815a19bb8f045fc1d8df9bf8cebae164f45cf83f901160c63809c','strip':0,
+  'source_sha256':'8966d816a38b86ad24bf29ed951a7996afe1305e32e390bbcacb7c9cec7c7162','strip':1,
+  'legacy_archive':{'sha256':'10769f2501d815a19bb8f045fc1d8df9bf8cebae164f45cf83f901160c63809c','strip':0},
   'config_sha256':'9e51dd4b9849c29c4bd88c56b04c0338f528d01dae9ed7071edbaacacb8fb7d8',
   'release':'4.9.337-g4174e0b4d0e2','localversion':'-g4174e0b4d0e2',
   'user':'tater','host':'rook-research','timestamp':'Sun Nov 15 01:30:00 UTC 2026','version':'2',
@@ -49,7 +50,13 @@ def sha256(path):
 def build(target,source,toolchain,output,builder,jobs):
  profile=PROFILES[target]
  config=INPUTS/(target+'.config')
- for path,expected in ((source,profile['source_sha256']),(toolchain,TOOLCHAIN_SHA256),(config,profile['config_sha256'])):
+ source_sha=sha256(source)
+ strip=profile['strip']
+ if source_sha!=profile['source_sha256']:
+  legacy=profile.get('legacy_archive',{})
+  if source_sha!=legacy.get('sha256'):raise ValueError('source archive mismatch')
+  strip=legacy['strip']
+ for path,expected in ((toolchain,TOOLCHAIN_SHA256),(config,profile['config_sha256'])):
   if sha256(path)!=expected: raise ValueError('input hash mismatch: '+str(path))
  if output.exists() or output.is_symlink(): raise ValueError('output exists; refusing to overwrite or reuse objects')
  if not 1<=jobs<=8: raise ValueError('jobs must be between one and eight')
@@ -76,12 +83,13 @@ cp /repo/build-inputs/hardware-kernels/TARGET.config /out/.config
 make -s O=/out olddefconfig
 cmp /repo/build-inputs/hardware-kernels/TARGET.config /out/.config
 make -s -jJOBS O=/out Image.gz-dtb
-test "$(cat /out/include/config/kernel.release)" = RELEASE
 cp /out/arch/arm64/boot/Image.gz-dtb /export/Image.gz-dtb
 cp /out/.config /export/kernel.config
 cp /out/Module.symvers /export/Module.symvers
+cp /out/include/config/kernel.release /export/kernel.release
+test "$(cat /out/include/config/kernel.release)" = RELEASE
 """
- script=script.replace('STRIP',str(profile['strip'])).replace('TARGET',target).replace('JOBS',str(jobs)).replace('RELEASE',profile['release'])
+ script=script.replace('STRIP',str(strip)).replace('TARGET',target).replace('JOBS',str(jobs)).replace('RELEASE',profile['release'])
  script=script.replace('PATCHES','\n'.join('git apply --check /repo/'+p+'\ngit apply /repo/'+p for p in patches))
  command=['docker','run','--rm','--platform','linux/amd64','--network','none']
  for key,value in environment.items(): command+=['-e',key+'='+value]
@@ -90,7 +98,7 @@ cp /out/Module.symvers /export/Module.symvers
  subprocess.run(command,check=True)
  actual=sha256(output/'Image.gz-dtb')
  record={'schema':1,'target':target,'builder':builder,'profile':profile,'patches':patches,
-  'kernel_sha256':actual,'reproduced':actual==profile['expected_raw_sha256'],'flashed':False}
+  'source_archive_sha256':source_sha,'kernel_sha256':actual,'reproduced':actual==profile['expected_raw_sha256'],'flashed':False}
  (output/'BUILD.json').write_text(json.dumps(record,indent=2,sort_keys=True)+'\n')
  if not record['reproduced']: raise ValueError('kernel differs from reviewed raw build; inspect BUILD.json, do not publish/promote')
  return record

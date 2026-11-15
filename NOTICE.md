@@ -17,3 +17,9 @@ downloaded projects retain their own license terms. Do not treat the
 top-level Tater license as replacing a license preserved inside an imported
 platform or third-party component.
 
+Stored Linux configurations and kernel diffs under
+`build-inputs/hardware-kernels/` retain those Linux GPLv2 terms, not the
+repository's default AGPLv3 terms. A copy is included there as
+`GPL-2.0-only.txt`. Independently written Python build/verification tooling
+retains the repository's default license unless separately marked.
+

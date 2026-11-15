@@ -1,0 +1,2 @@
+# Stored kernel diffs retain their upstream context-prefix whitespace.
+build-inputs/hardware-kernels/*.patch -whitespace

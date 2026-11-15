@@ -1,10 +1,10 @@
-import hashlib
 import json
 from pathlib import Path
 import tempfile
 import unittest
 from unittest import mock
 from tools import build_hardware_kernel as kernel, build_video_decoder as video, prepare_show_hardware_boot as boot
+from tools import build_athena_hardware_kernel as athena
 
 
 class HardwareInputTests(unittest.TestCase):
@@ -14,6 +14,14 @@ class HardwareInputTests(unittest.TestCase):
             self.assertTrue(all((kernel.ROOT/path).is_file() for path in profile['patches']))
             self.assertFalse(any('jpeg' in path.lower() for path in profile['patches']))
         self.assertNotEqual(kernel.PROFILES['rook']['source_sha256'],kernel.PROFILES['checkers']['source_sha256'])
+        self.assertEqual(kernel.PROFILES['checkers']['localversion'],'')
+
+    def test_athena_uses_its_exact_separate_kernel_config_and_explicit_host_compiler(self):
+        self.assertEqual(athena.digest(athena.ROOT/'build-inputs/hardware-kernels/athena.config'),athena.CONFIG_SHA)
+        source=Path(athena.__file__).read_text()
+        self.assertIn('make -s CC=gcc-13 HOSTCC=gcc-13 olddefconfig',source)
+        self.assertIn('make -s -j3 CC=gcc-13 HOSTCC=gcc-13',source)
+        self.assertIn('M=drivers/remoteproc modules',source)
 
     def test_kernel_rejects_wrong_inputs_before_building_or_writing(self):
         with tempfile.TemporaryDirectory() as temporary:
